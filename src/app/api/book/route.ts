@@ -3,7 +3,8 @@ import { getService } from "@/config/catalog";
 import { buildSlots } from "@/lib/slots";
 import { bookingRepository } from "@/services/booking-repository";
 import { notifyBooking } from "@/services/notifications";
-import type { ApiResult, BookingRecord } from "@/types";
+import { uploads } from "@/config/uploads";
+import type { ApiResult, BookingPhoto, BookingRecord } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,43 @@ interface Body {
   name?: string;
   phone?: string;
   comment?: string;
+  photos?: BookingPhoto[];
+}
+
+/**
+ * Фото приходят как data-URL внутри JSON. Клиент их уже сжал,
+ * но доверять клиенту нельзя: проверяем формат, количество и вес заново.
+ */
+function validatePhotos(photos: BookingPhoto[] | undefined): {
+  clean: BookingPhoto[];
+  error?: string;
+} {
+  if (!photos?.length) return { clean: [] };
+  if (!Array.isArray(photos)) return { clean: [], error: "Некорректный формат фото" };
+  if (photos.length > uploads.maxFiles) {
+    return { clean: [], error: `Не больше ${uploads.maxFiles} фото` };
+  }
+
+  const clean: BookingPhoto[] = [];
+  for (const p of photos) {
+    const match = /^data:(image\/[a-z+.-]+);base64,/i.exec(p?.dataUrl ?? "");
+    if (!match) return { clean: [], error: "Файл не похож на изображение" };
+    if (!uploads.acceptMime.includes(match[1].toLowerCase() as never)) {
+      return { clean: [], error: "Такой формат изображения не поддерживается" };
+    }
+
+    const base64 = p.dataUrl.slice(p.dataUrl.indexOf(",") + 1);
+    const bytes = Math.round(base64.length * 0.75);
+    if (bytes > uploads.maxBytes) return { clean: [], error: "Фото слишком тяжёлое" };
+
+    clean.push({
+      id: String(p.id ?? "").slice(0, 40) || `p-${clean.length}`,
+      name: String(p.name ?? "photo.jpg").slice(0, 80),
+      dataUrl: p.dataUrl,
+      size: bytes,
+    });
+  }
+  return { clean };
 }
 
 /** Валидация на сервере. Клиентская — только для UX, доверять ей нельзя. */
@@ -34,7 +72,10 @@ function validate(body: Body) {
     else if (!slot.available) fields.time = "Это время уже заняли — выберите другое";
   }
 
-  return { service, fields };
+  const photos = validatePhotos(body.photos);
+  if (photos.error) fields.photos = photos.error;
+
+  return { service, fields, photos: photos.clean };
 }
 
 export async function POST(request: Request) {
@@ -48,7 +89,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { service, fields } = validate(body);
+  const { service, fields, photos } = validate(body);
   if (!service || Object.keys(fields).length > 0) {
     return NextResponse.json<ApiResult<never>>(
       { ok: false, error: "Проверьте поля формы", fields },
@@ -67,6 +108,7 @@ export async function POST(request: Request) {
     name: body.name!.trim(),
     phone: body.phone!.trim(),
     comment: body.comment?.trim() || undefined,
+    photos,
     source: "web",
   });
 

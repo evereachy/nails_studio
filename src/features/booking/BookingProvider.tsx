@@ -13,6 +13,7 @@ const emptyDraft: BookingDraft = {
   name: "",
   phone: "",
   comment: "",
+  photos: [],
 };
 
 interface BookingContextValue {
@@ -84,8 +85,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       setError(res.error);
       setFieldErrors(res.fields ?? {});
       // возвращаем на шаг, где ошибка
-      if (res.fields?.serviceId) setStep(1);
-      else if (res.fields?.date || res.fields?.time) setStep(2);
+       if (res.fields?.serviceId) setStep(1);
+       else if (res.fields?.date || res.fields?.time) setStep(2);
+       else setStep(3);
     }
   }, [draft]);
 
