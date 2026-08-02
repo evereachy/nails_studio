@@ -60,17 +60,6 @@ export const services: Service[] = [
     image:
       "https://images.unsplash.com/photo-1583001931096-959e9a1a6223?auto=format&fit=crop&w=800&q=70",
   },
-  {
-    id: "facial",
-    title: "Уход за лицом",
-    category: "care",
-    durationMin: 90,
-    price: 1600,
-    currency: "Kč",
-    description: "Чистка, маска, массаж по типу кожи.",
-    image:
-      "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=800&q=70",
-  },
 ];
 
 export const categoryLabels: Record<Service["category"], string> = {

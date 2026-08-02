@@ -41,7 +41,15 @@ export interface GalleryItem {
   src: string;
   alt: string;
 }
-
+//  Фото-референс, приложенный к записи. dataUrl уже сжат на клиенте. */
+export interface BookingPhoto {
+  id: string;
+  name: string;
+  /** data:image/jpeg;base64,... */
+  dataUrl: string;
+  /** размер после сжатия, байты */
+  size: number;
+}
 /** Слот времени в формате "HH:mm" */
 export type TimeSlot = string;
 
@@ -61,6 +69,7 @@ export interface BookingDraft {
   name: string;
   phone: string;
   comment?: string;
+photos: BookingPhoto[];
 }
 
 /** То, что уходит на сервер */
@@ -75,6 +84,7 @@ export interface BookingPayload {
   name: string;
   phone: string;
   comment?: string;
+  photos: BookingPhoto[];
   source: "web";
 }
 
@@ -95,3 +105,4 @@ export interface WorkingDay {
   open: TimeSlot | null;
   close: TimeSlot | null;
 }
+

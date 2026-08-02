@@ -16,7 +16,7 @@ export type BlockId = "hero" | "about" | "services" | "booking" | "reviews" | "g
  * компоненты не трогаем.
  */
 export const pageBlocks: Array<{ id: BlockId; Component: ComponentType; enabled: boolean }> = [
-  { id: "hero", Component: Hero, enabled: true },
+  { id: "hero", Component: Hero, enabled: false },
   { id: "about", Component: About, enabled: true },
   { id: "services", Component: Services, enabled: true },
   { id: "booking", Component: Booking, enabled: true },

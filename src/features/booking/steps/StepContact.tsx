@@ -1,9 +1,12 @@
 "use client";
 
 import { getService } from "@/config/catalog";
+import { uploads } from "@/config/uploads";
 import { TextAreaField, TextField } from "@/components/ui/Field";
+import { PhotoPicker } from "@/components/ui/PhotoPicker";
 import { formatDateLong, formatDuration, formatPrice, maskPhone } from "@/lib/format";
 import { useBooking } from "../BookingProvider";
+
 
 export function StepContact() {
   const { draft, patch, fieldErrors } = useBooking();
@@ -53,6 +56,13 @@ export function StepContact() {
         placeholder="Например: хочу убрать жёлтый оттенок"
         value={draft.comment}
         onChange={(e) => patch({ comment: e.target.value })}
+      />
+      <PhotoPicker
+        label="Фото — по желанию"
+        hint={`Референс или ваш нынешний цвет. До ${uploads.maxFiles} фото, мастер посмотрит заранее`}
+        value={draft.photos}
+        error={fieldErrors.photos}
+        onChange={(photos) => patch({ photos })}
       />
     </div>
   );

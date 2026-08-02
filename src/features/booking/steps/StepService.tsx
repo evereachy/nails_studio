@@ -9,7 +9,7 @@ export function StepService() {
   const { draft, patch, goTo } = useBooking();
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 h-[calc(100vh-200px)] overflow-y-auto">
       {services.map((s) => {
         const active = draft.serviceId === s.id;
         return (
