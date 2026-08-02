@@ -1,0 +1,167 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   СЛОЙ 1 — ДИЗАЙН-ТОКЕНЫ
+   Единственное место, где живёт визуал.
+   Чтобы натянуть другой дизайн клиента — правим только этот блок.
+   ============================================================ */
+:root {
+  /* цвет */
+  --c-bg: #ffffff;
+  --c-surface: #f7f6f3;
+  --c-elevated: #ffffff;
+  --c-line: #e8e4dd;
+  --c-ink: #1b1a18;
+  --c-muted: #7c766d;
+  --c-accent: #1b1a18;
+  --c-accent-ink: #ffffff;
+
+  /* форма */
+  --r-card: 24px;
+  --r-control: 14px;
+  --r-pill: 999px;
+
+  /* тень */
+  --sh-soft: 0 1px 2px rgba(20, 18, 15, 0.04), 0 10px 30px -18px rgba(20, 18, 15, 0.25);
+  --sh-lift: 0 2px 4px rgba(20, 18, 15, 0.05), 0 18px 40px -20px rgba(20, 18, 15, 0.35);
+
+  /* типографика */
+  --f-display: var(--font-display), Georgia, serif;
+  --f-body: var(--font-body), system-ui, -apple-system, sans-serif;
+
+  /* сетка */
+  --w-container: 1120px;
+  --pad-x: 20px;
+  --gap-section: 72px;
+
+  /* движение */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --pad-x: 32px;
+    --gap-section: 120px;
+  }
+}
+
+/* --- ГОТОВЫЕ ПРЕСЕТЫ ТЕМ ---
+   Включаются одним атрибутом на <html data-theme="...">.
+   Дают клиенту выбрать вид без правок кода. */
+[data-theme="sand"] {
+  --c-bg: #fbf8f4;
+  --c-surface: #f2ece3;
+  --c-line: #e2d9cb;
+  --c-ink: #2a241d;
+  --c-muted: #857b6c;
+  --c-accent: #8a6f52;
+  --c-accent-ink: #ffffff;
+}
+
+[data-theme="noir"] {
+  --c-bg: #101010;
+  --c-surface: #191919;
+  --c-elevated: #1f1f1f;
+  --c-line: #2c2c2c;
+  --c-ink: #f2f0ec;
+  --c-muted: #9a948c;
+  --c-accent: #f2f0ec;
+  --c-accent-ink: #101010;
+  --sh-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --sh-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 18px 40px -20px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme="rose"] {
+  --c-bg: #fffcfc;
+  --c-surface: #fbf0f0;
+  --c-line: #f0dede;
+  --c-ink: #241b1c;
+  --c-muted: #8a7476;
+  --c-accent: #9d5b60;
+  --c-accent-ink: #ffffff;
+}
+
+/* ============================================================
+   СЛОЙ 2 — БАЗА
+   ============================================================ */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    scroll-padding-top: 76px;
+  }
+
+  body {
+    background: var(--c-bg);
+    color: var(--c-ink);
+    font-family: var(--f-body);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* 16px — иначе Safari на iOS зумит страницу при фокусе в поле */
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px;
+    font-family: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--c-ink);
+    color: var(--c-bg);
+  }
+}
+
+@layer utilities {
+  /* горизонтальные ленты карточек на мобиле */
+  .rail {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    margin-inline: calc(var(--pad-x) * -1);
+    padding-inline: var(--pad-x);
+    padding-bottom: 4px;
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+  .rail > * {
+    scroll-snap-align: start;
+    flex: 0 0 auto;
+  }
+
+  /* безопасные зоны iPhone */
+  .safe-b {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    scrollbar-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
