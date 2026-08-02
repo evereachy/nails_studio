@@ -4,6 +4,12 @@ import type { NotificationChannel } from "./types";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
+/** Для супергрупп с темами: id топика, куда падают заявки. Пусто — общий чат. */
+const THREAD_ID = process.env.TELEGRAM_THREAD_ID ?? "";
+
+const API = "https://api.telegram.org";
+const TIMEOUT_MS = 8000;
+const MAX_RETRIES = 2;
 
 /** Экранирование под parse_mode: HTML */
 function esc(s: string) {
@@ -21,9 +27,62 @@ export function buildMessage(b: BookingRecord) {
     `<b>Время:</b> ${b.time}`,
   ];
   if (b.comment?.trim()) lines.push(`<b>Комментарий:</b> ${esc(b.comment.trim())}`);
-  if (b.photos?.length) lines.push(`<b>Фото:</b> ${b.photos.length}`);
+  if (b.photos?.length) lines.push(`<b>Фото:</b> ${b.photos.length} шт. — следующим сообщением`);
   lines.push("", `<i>#${b.id}</i>`);
   return lines.join("\n");
+}
+
+interface TgResponse {
+  ok: boolean;
+  description?: string;
+  parameters?: { retry_after?: number };
+  result?: unknown;
+}
+
+/**
+ * Единая точка вызова Telegram.
+ *
+ * Что закрывает:
+ *  - таймаут: без него зависший запрос держит соединение клиента,
+ *    и человек смотрит на крутилку вместо «Записали вас»;
+ *  - 429: Telegram лимитирует ~20 сообщений в минуту на группу,
+ *    в пиковый вечер это реально поймать — ждём retry_after и повторяем;
+ *  - 5xx: сеть Telegram иногда моргает, две попытки решают почти всё;
+ *  - 4xx кроме 429 повторять бессмысленно — это наша ошибка в данных.
+ */
+export async function tgCall(
+  method: string,
+  body: FormData | Record<string, unknown>,
+  attempt = 0,
+): Promise<TgResponse> {
+  if (!BOT_TOKEN) throw new Error("TELEGRAM_BOT_TOKEN не задан");
+
+  const isForm = body instanceof FormData;
+  const res = await fetch(`${API}/bot${BOT_TOKEN}/${method}`, {
+    method: "POST",
+    headers: isForm ? undefined : { "Content-Type": "application/json" },
+    body: isForm ? body : JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+
+  const data = (await res.json().catch(() => ({ ok: false }))) as TgResponse;
+  if (res.ok && data.ok) return data;
+
+  const retriable = res.status === 429 || res.status >= 500;
+  if (retriable && attempt < MAX_RETRIES) {
+    const waitSec = data.parameters?.retry_after ?? 2 ** attempt;
+    await new Promise((r) => setTimeout(r, waitSec * 1000));
+    return tgCall(method, body, attempt + 1);
+  }
+
+  throw new Error(`Telegram ${method} ${res.status}: ${data.description ?? "неизвестная ошибка"}`);
+}
+
+/** Общие поля адресации — чтобы не дублировать chat_id/thread в каждом вызове. */
+function target() {
+  return THREAD_ID
+    ? { chat_id: CHAT_ID, message_thread_id: Number(THREAD_ID) }
+    : { chat_id: CHAT_ID };
 }
 
 /** data:image/jpeg;base64,... -> Blob для multipart-загрузки */
@@ -35,16 +94,15 @@ function dataUrlToBlob(dataUrl: string) {
 }
 
 /**
- * Фото уходят отдельным сообщением через sendMediaGroup —
- * в чате они склеиваются в один альбом под текстом записи.
- * Одно фото альбомом слать нельзя, для него sendPhoto.
+ * Фото уходят отдельным сообщением: в чате они склеиваются в альбом.
+ * Одно фото альбомом слать нельзя — для него sendPhoto.
  */
 async function sendPhotos(booking: BookingRecord) {
   const photos = (booking.photos ?? []).slice(0, 10);
   if (photos.length === 0) return;
 
   const form = new FormData();
-  form.append("chat_id", CHAT_ID);
+  for (const [k, v] of Object.entries(target())) form.append(k, String(v));
 
   const caption = `Фото к записи #${booking.id} — ${booking.name}`;
   const single = photos.length === 1;
@@ -66,38 +124,29 @@ async function sendPhotos(booking: BookingRecord) {
     photos.forEach((p, i) => form.append(`file${i}`, dataUrlToBlob(p.dataUrl), p.name));
   }
 
-  const method = single ? "sendPhoto" : "sendMediaGroup";
-  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) {
-    // Текст записи уже ушёл — заявку из-за фото не теряем, только логируем.
-    console.error(`[telegram:${method}] ${res.status}`, await res.text());
-  }
+  await tgCall(single ? "sendPhoto" : "sendMediaGroup", form);
 }
+
 export const telegramChannel: NotificationChannel = {
   id: "telegram",
 
   isConfigured: () => Boolean(BOT_TOKEN && CHAT_ID),
 
   async send(booking: BookingRecord) {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        text: buildMessage(booking),
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
+    // Текст — критичен: если он не ушёл, запись считается недоставленной.
+    await tgCall("sendMessage", {
+      ...target(),
+      text: buildMessage(booking),
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
     });
 
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Telegram ${res.status}: ${body}`);
+    // Фото — приятное дополнение. Их падение не должно ломать заявку:
+    // мастер уже знает имя, телефон и время, остальное уточнит по звонку.
+    try {
+      await sendPhotos(booking);
+    } catch (e) {
+      console.error("[telegram] фото не доставлены", e);
     }
-    await sendPhotos(booking);
   },
 };
