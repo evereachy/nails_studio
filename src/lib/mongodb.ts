@@ -22,12 +22,19 @@ function clientPromise(): Promise<MongoClient> {
 
   if (!globalForMongo._mongoClientPromise) {
     const client = new MongoClient(URI, {
-      // Быстро падаем вместо десятисекундного зависания формы у клиента
       serverSelectionTimeoutMS: 5000,
       maxPoolSize: 10,
     });
-    globalForMongo._mongoClientPromise = client.connect();
+
+    // Промис кэшируем, но отклонённый — сбрасываем. Иначе одна неудача
+    // при холодном старте залипает в globalThis, и warm-инстанс продолжает
+    // отдавать старую ошибку даже после того, как база снова доступна.
+    globalForMongo._mongoClientPromise = client.connect().catch((e) => {
+      globalForMongo._mongoClientPromise = undefined;
+      throw e;
+    });
   }
+
   return globalForMongo._mongoClientPromise;
 }
 
@@ -58,7 +65,10 @@ export async function ensureIndexes() {
         { key: { id: 1 }, name: "public_id", unique: true },
         { key: { createdAt: -1 }, name: "recent" },
       ]);
-    })();
+    })().catch((e) => {
+      indexesReady = null;
+      throw e;
+    });
   }
   return indexesReady;
 }
