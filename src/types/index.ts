@@ -68,8 +68,9 @@ export interface BookingDraft {
   time: TimeSlot | null;
   name: string;
   phone: string;
+  telegram?: string; // <-- Добавлено
   comment?: string;
-photos: BookingPhoto[];
+  photos: BookingPhoto[];
 }
 
 /** То, что уходит на сервер */
@@ -83,6 +84,7 @@ export interface BookingPayload {
   time: TimeSlot;
   name: string;
   phone: string;
+  telegram?: string; // <-- Добавлено
   comment?: string;
   photos: BookingPhoto[];
   source: "web";

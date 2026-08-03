@@ -1,7 +1,8 @@
 import type { BookingRecord } from "@/types";
 import { telegramChannel } from "./telegram";
-import { emailChannel, smsChannel, whatsappChannel } from "./stubs";
+import { emailChannel, smsChannel } from "./stubs";
 import type { NotificationChannel, NotificationResult } from "./types";
+import { whatsappChannel } from "./whatsapp";
 
 /** Реестр каналов. Добавить новый — одна строка. */
 const registry: Record<string, NotificationChannel> = {
