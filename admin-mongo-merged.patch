@@ -1,0 +1,3598 @@
+diff --git a/README.md b/README.md
+index d2d546a..0d02081 100644
+--- a/README.md
++++ b/README.md
+@@ -84,6 +84,92 @@ features/booking/
+ Занятость сейчас mock (`src/config/schedule.ts`), сигнатура `getBusyIntervals()`
+ не изменится при переезде на БД.
+ 
++
++---
++
++## База данных (MongoDB)
++
++Строка подключения и пароль живут только в `.env.local` и в переменных окружения
++хостинга. В репозиторий они не попадают.
++
++```bash
++MONGODB_URI=mongodb+srv://ПОЛЬЗОВАТЕЛЬ:ПАРОЛЬ@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
++MONGODB_DB=nails_studio
++```
++
++Имя базы в URI указывать не нужно — его задаёт `MONGODB_DB`.
++
++Проверка и первичная инициализация:
++
++```bash
++npm run db:check
++```
++
++Скрипт пингует кластер, создаёт индексы и кладёт настройки по умолчанию,
++чтобы админка открылась не пустой.
++
++**Если MONGODB_URI не задан, проект работает в демо-режиме на данных в памяти.**
++Записи и правки графика живут до перезапуска процесса — удобно показывать
++макет клиенту, непригодно для работы.
++
++### Что где лежит
++
++| Коллекция | Содержимое |
++|---|---|
++| `settings` | один документ `_id: "salon"` — график, разовые выходные, шаг сетки, мастера |
++| `bookings` | записи клиентов |
++
++Фото-референсы в базу не кладутся: три картинки в base64 упрутся в лимит
++документа 16 МБ и раздуют список записей в админке. Они уходят в Telegram,
++в документе остаётся только `photoCount`. Для продакшена — объектное хранилище
++и ссылка.
++
++### Подключение
++
++| Файл | Роль |
++|---|---|
++| `lib/mongodb.ts` | клиент с кэшем в `globalThis`, индексы |
++| `services/settings-repository.ts` | настройки и мастера, обе реализации |
++| `services/booking-repository.ts` | записи, обе реализации |
++
++Клиент кэшируется намеренно: в dev-режиме Next пересобирает модули на каждое
++сохранение файла, и без кэша через десяток правок Atlas упрётся в лимит
++соединений.
++
++---
++
++## Админка
++
++`/admin`, пароль в `ADMIN_PASSWORD`. Без этой переменной страница недоступна.
++
++```bash
++ADMIN_PASSWORD=длинный-пароль
++ADMIN_SECRET=отдельная-случайная-строка
++```
++
++`ADMIN_SECRET` подписывает cookie сессии. Если его не задать, берётся пароль —
++тогда смена пароля разлогинивает всех разом.
++
++Три вкладки: **График** (рабочие часы по дням, разовые выходные, шаг сетки,
++горизонт записи), **Мастера** (имя, специализация, услуги, личные выходные,
++приём вкл/выкл), **Записи** (список с телефоном, подтверждение и отмена).
++
++Сессия живёт 12 часов, состояние на сервере не хранится — токен подписан HMAC,
++поэтому работает при нескольких инстансах.
++
++---
++
++## Мастера
++
++Мастер выбирается на шаге «Когда удобно», по умолчанию — «Любой».
++
++Показываются только те, кто делает **все** выбранные процедуры: пустой
++`serviceIds` означает «делает всё». При выборе «Любой» день закрыт, только если
++выходной у всех сразу, а время занято, только если заняты все мастера —
++иначе одна бронь гасила бы слот для всего салона.
++
++Смена мастера перезагружает расписание и сбрасывает выбранное время.
++
+ ---
+ 
+ ## Уведомления
+diff --git a/package-lock.json b/package-lock.json
+index d62c75c..06387fe 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -10,6 +10,7 @@
+       "dependencies": {
+         "clsx": "^2.1.1",
+         "framer-motion": "^11.15.0",
++        "mongodb": "^7.5.0",
+         "next": "^15.5.21",
+         "react": "19.0.0",
+         "react-dom": "19.0.0",
+@@ -553,6 +554,15 @@
+         "@jridgewell/sourcemap-codec": "^1.4.14"
+       }
+     },
++    "node_modules/@mongodb-js/saslprep": {
++      "version": "1.4.13",
++      "resolved": "https://registry.npmjs.org/@mongodb-js/saslprep/-/saslprep-1.4.13.tgz",
++      "integrity": "sha512-E3Sv4eCYAlKYUTx8S3ioQcDUscOif+8zZ5OnW1IzJ+Tt+EO+ke8mn+Y3FX6N1H79picwbdOavVOb1jPi2EOyrg==",
++      "license": "MIT",
++      "dependencies": {
++        "sparse-bitfield": "^3.0.3"
++      }
++    },
+     "node_modules/@next/env": {
+       "version": "15.5.21",
+       "resolved": "https://registry.npmjs.org/@next/env/-/env-15.5.21.tgz",
+@@ -764,6 +774,21 @@
+         "@types/react": "^19.2.0"
+       }
+     },
++    "node_modules/@types/webidl-conversions": {
++      "version": "7.0.3",
++      "resolved": "https://registry.npmjs.org/@types/webidl-conversions/-/webidl-conversions-7.0.3.tgz",
++      "integrity": "sha512-CiJJvcRtIgzadHCYXw7dqEnMNRjhGZlYK05Mj9OyktqV8uVT8fD2BFOB7S1uwBE3Kj2Z+4UyPmFw/Ixgw/LAlA==",
++      "license": "MIT"
++    },
++    "node_modules/@types/whatwg-url": {
++      "version": "13.0.0",
++      "resolved": "https://registry.npmjs.org/@types/whatwg-url/-/whatwg-url-13.0.0.tgz",
++      "integrity": "sha512-N8WXpbE6Wgri7KUSvrmQcqrMllKZ9uxkYWMt+mCSGwNc0Hsw9VQTW7ApqI4XNrx6/SaM2QQJCzMPDEXE058s+Q==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/webidl-conversions": "*"
++      }
++    },
+     "node_modules/any-promise": {
+       "version": "1.3.0",
+       "resolved": "https://registry.npmjs.org/any-promise/-/any-promise-1.3.0.tgz",
+@@ -902,6 +927,15 @@
+         "node": "^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7"
+       }
+     },
++    "node_modules/bson": {
++      "version": "7.3.1",
++      "resolved": "https://registry.npmjs.org/bson/-/bson-7.3.1.tgz",
++      "integrity": "sha512-h/C0qe6857pQhcSJHLfsR1uYGj98Ge3wKAD3Ed9KqH3wcVh+BM4Jq4xISD7vs9OPuT07n+q3QQVjslJ286j6ag==",
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=20.19.0"
++      }
++    },
+     "node_modules/camelcase-css": {
+       "version": "2.0.1",
+       "resolved": "https://registry.npmjs.org/camelcase-css/-/camelcase-css-2.0.1.tgz",
+@@ -1303,6 +1337,12 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/memory-pager": {
++      "version": "1.5.0",
++      "resolved": "https://registry.npmjs.org/memory-pager/-/memory-pager-1.5.0.tgz",
++      "integrity": "sha512-ZS4Bp4r/Zoeq6+NLJpP+0Zzm0pR8whtGPf1XExKLJBAczGMnSi3It14OiNCStjQjM6NU1okjQGSxgEZN8eBYKg==",
++      "license": "MIT"
++    },
+     "node_modules/merge2": {
+       "version": "1.4.1",
+       "resolved": "https://registry.npmjs.org/merge2/-/merge2-1.4.1.tgz",
+@@ -1327,6 +1367,65 @@
+         "node": ">=8.6"
+       }
+     },
++    "node_modules/mongodb": {
++      "version": "7.5.0",
++      "resolved": "https://registry.npmjs.org/mongodb/-/mongodb-7.5.0.tgz",
++      "integrity": "sha512-5FnrEDLnvp6ycUOGLNLLU33BfCx2qmp2mJjGPDwKLruYsVzXVSK5fsGpoDXvsXJwBfBsD7ebMRdawbDxC2814g==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@mongodb-js/saslprep": "^1.4.11",
++        "bson": "^7.2.0",
++        "mongodb-connection-string-url": "^7.0.1"
++      },
++      "engines": {
++        "node": ">=20.19.0"
++      },
++      "peerDependencies": {
++        "@aws-sdk/credential-providers": "^3.806.0",
++        "@mongodb-js/zstd": "^7.0.0",
++        "gcp-metadata": "^7.0.1",
++        "kerberos": "^7.0.0",
++        "mongodb-client-encryption": "^7.2.0",
++        "snappy": "^7.3.2",
++        "socks": "^2.8.6"
++      },
++      "peerDependenciesMeta": {
++        "@aws-sdk/credential-providers": {
++          "optional": true
++        },
++        "@mongodb-js/zstd": {
++          "optional": true
++        },
++        "gcp-metadata": {
++          "optional": true
++        },
++        "kerberos": {
++          "optional": true
++        },
++        "mongodb-client-encryption": {
++          "optional": true
++        },
++        "snappy": {
++          "optional": true
++        },
++        "socks": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/mongodb-connection-string-url": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/mongodb-connection-string-url/-/mongodb-connection-string-url-7.0.2.tgz",
++      "integrity": "sha512-ZoS07RoFqpKYQwAk59qmrx8+jJHNHU30UjlU96QktiGn1ltvDr+vCznLX5DiUBLEpMAHatHNWV1nM/74ul66kA==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@types/whatwg-url": "^13.0.0",
++        "whatwg-url": "^14.1.0"
++      },
++      "engines": {
++        "node": ">=20.19.0"
++      }
++    },
+     "node_modules/motion-dom": {
+       "version": "11.18.1",
+       "resolved": "https://registry.npmjs.org/motion-dom/-/motion-dom-11.18.1.tgz",
+@@ -1701,6 +1800,15 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/punycode": {
++      "version": "2.3.1",
++      "resolved": "https://registry.npmjs.org/punycode/-/punycode-2.3.1.tgz",
++      "integrity": "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=6"
++      }
++    },
+     "node_modules/queue-microtask": {
+       "version": "1.2.3",
+       "resolved": "https://registry.npmjs.org/queue-microtask/-/queue-microtask-1.2.3.tgz",
+@@ -1896,6 +2004,15 @@
+         "node": ">=0.10.0"
+       }
+     },
++    "node_modules/sparse-bitfield": {
++      "version": "3.0.3",
++      "resolved": "https://registry.npmjs.org/sparse-bitfield/-/sparse-bitfield-3.0.3.tgz",
++      "integrity": "sha512-kvzhi7vqKTfkh0PZU+2D2PIllw2ymqJKujUcyPMd9Y75Nv4nPbGJZXNhxsgdQab2BmlDct1YnfQCguEvHr7VsQ==",
++      "license": "MIT",
++      "dependencies": {
++        "memory-pager": "^1.0.2"
++      }
++    },
+     "node_modules/styled-jsx": {
+       "version": "5.1.6",
+       "resolved": "https://registry.npmjs.org/styled-jsx/-/styled-jsx-5.1.6.tgz",
+@@ -2087,6 +2204,18 @@
+         "node": ">=8.0"
+       }
+     },
++    "node_modules/tr46": {
++      "version": "5.1.1",
++      "resolved": "https://registry.npmjs.org/tr46/-/tr46-5.1.1.tgz",
++      "integrity": "sha512-hdF5ZgjTqgAntKkklYw0R03MG2x/bSzTtkxmIRw/sTNV8YXsCJ1tfLAX23lhxhHJlEf3CRCOCGGWw3vI3GaSPw==",
++      "license": "MIT",
++      "dependencies": {
++        "punycode": "^2.3.1"
++      },
++      "engines": {
++        "node": ">=18"
++      }
++    },
+     "node_modules/ts-interface-checker": {
+       "version": "0.1.13",
+       "resolved": "https://registry.npmjs.org/ts-interface-checker/-/ts-interface-checker-0.1.13.tgz",
+@@ -2158,6 +2287,28 @@
+       "integrity": "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==",
+       "dev": true,
+       "license": "MIT"
++    },
++    "node_modules/webidl-conversions": {
++      "version": "7.0.0",
++      "resolved": "https://registry.npmjs.org/webidl-conversions/-/webidl-conversions-7.0.0.tgz",
++      "integrity": "sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==",
++      "license": "BSD-2-Clause",
++      "engines": {
++        "node": ">=12"
++      }
++    },
++    "node_modules/whatwg-url": {
++      "version": "14.2.0",
++      "resolved": "https://registry.npmjs.org/whatwg-url/-/whatwg-url-14.2.0.tgz",
++      "integrity": "sha512-De72GdQZzNTUBBChsXueQUnPKDkg/5A5zp7pFDuQAj5UFoENpiACU0wlCvzpAGnTkj++ihpKwKyYewn/XNUbKw==",
++      "license": "MIT",
++      "dependencies": {
++        "tr46": "^5.1.0",
++        "webidl-conversions": "^7.0.0"
++      },
++      "engines": {
++        "node": ">=18"
++      }
+     }
+   }
+ }
+diff --git a/package.json b/package.json
+index c8b1e33..a4f6741 100644
+--- a/package.json
++++ b/package.json
+@@ -6,11 +6,13 @@
+     "dev": "next dev",
+     "build": "next build",
+     "start": "next start",
+-    "lint": "next lint"
++    "lint": "next lint",
++    "db:check": "node --env-file=.env.local scripts/db-check.mjs"
+   },
+   "dependencies": {
+     "clsx": "^2.1.1",
+     "framer-motion": "^11.15.0",
++    "mongodb": "^7.5.0",
+     "next": "^15.5.21",
+     "react": "19.0.0",
+     "react-dom": "19.0.0",
+diff --git a/scripts/db-check.mjs b/scripts/db-check.mjs
+new file mode 100644
+index 0000000..47a6c79
+--- /dev/null
++++ b/scripts/db-check.mjs
+@@ -0,0 +1,111 @@
++/**
++ * Проверка подключения к MongoDB и первичная инициализация.
++ *
++ *   node --env-file=.env.local scripts/db-check.mjs
++ *
++ * Что делает:
++ *  1. подключается и пингует кластер;
++ *  2. создаёт индексы для коллекции записей;
++ *  3. если документа настроек ещё нет — кладёт значения по умолчанию,
++ *     чтобы админка открылась не пустой.
++ */
++import { MongoClient } from "mongodb";
++
++const URI = process.env.MONGODB_URI;
++const DB_NAME = process.env.MONGODB_DB ?? "nails_studio";
++
++if (!URI) {
++  console.error("✗ MONGODB_URI не задан. Создайте .env.local и добавьте строку подключения.");
++  process.exit(1);
++}
++
++if (URI.includes("<db_password>")) {
++  console.error("✗ В строке подключения остался плейсхолдер <db_password>.");
++  process.exit(1);
++}
++
++const defaultSettings = {
++  workingHours: [
++    { weekday: 1, open: "09:00", close: "20:00" },
++    { weekday: 2, open: "09:00", close: "20:00" },
++    { weekday: 3, open: "09:00", close: "20:00" },
++    { weekday: 4, open: "09:00", close: "20:00" },
++    { weekday: 5, open: "09:00", close: "20:00" },
++    { weekday: 6, open: "10:00", close: "18:00" },
++    { weekday: 0, open: "10:00", close: "18:00" },
++  ],
++  closedDates: [],
++  slotStepMin: 30,
++  horizonDays: 60,
++};
++
++const defaultMasters = [
++  { id: "anna", name: "Анна", role: "Колорист, стрижки", active: true, serviceIds: ["haircut", "coloring", "styling"], weekdaysOff: [0] },
++  { id: "lena", name: "Лена", role: "Мастер ногтевого сервиса", active: true, serviceIds: ["manicure"], weekdaysOff: [1] },
++  { id: "vera", name: "Вера", role: "Брови и ресницы", active: true, serviceIds: [], weekdaysOff: [2] },
++];
++
++const client = new MongoClient(URI, { serverSelectionTimeoutMS: 8000 });
++
++try {
++  await client.connect();
++  await client.db(DB_NAME).command({ ping: 1 });
++  console.log(`✓ Подключение к кластеру есть, база «${DB_NAME}»`);
++
++  const db = client.db(DB_NAME);
++
++  await db.collection("bookings").createIndexes([
++    { key: { date: 1, masterId: 1 }, name: "date_master" },
++    { key: { id: 1 }, name: "public_id", unique: true },
++    { key: { createdAt: -1 }, name: "recent" },
++  ]);
++  console.log("✓ Индексы коллекции bookings на месте");
++
++  const existing = await db.collection("settings").findOne({ _id: "salon" });
++
++  if (existing) {
++    console.log(`✓ Настройки уже есть, обновлены ${existing.updatedAt ?? "неизвестно когда"}`);
++  } else {
++    await db.collection("settings").insertOne({
++      _id: "salon",
++      settings: defaultSettings,
++      masters: defaultMasters,
++      updatedAt: new Date().toISOString(),
++    });
++    console.log("✓ Записаны настройки по умолчанию и три мастера");
++  }
++
++  const count = await db.collection("bookings").countDocuments();
++  console.log(`  Записей в базе: ${count}`);
++  console.log("\nГотово. Запускайте npm run dev и открывайте /admin");
++} catch (e) {
++  const msg = e.message ?? String(e);
++  console.error("✗ Не удалось подключиться:", msg);
++
++  // У этих трёх проблем разные симптомы, и смешивать их в один список вредно:
++  // человек начинает чинить не то, что сломано.
++  if (/bad auth|AuthenticationFailed|auth failed/i.test(msg)) {
++    console.error(
++      "\nКластер ответил, но отклонил логин. Дело НЕ в IP.\n" +
++        "  • проверьте, что используете Database User, а не аккаунт Atlas;\n" +
++        "  • пересоздайте пароль: Database Access → Edit → Edit Password;\n" +
++        "  • спецсимволы в пароле должны быть закодированы (@ → %40, : → %3A);\n" +
++        "  • в строке не осталось угловых скобок <>.",
++    );
++  } else if (/ServerSelection|ETIMEDOUT|ECONNREFUSED|timed out/i.test(msg)) {
++    console.error(
++      "\nДо кластера не достучались. Вот это уже про сеть:\n" +
++        "  • добавьте свой IP в Network Access;\n" +
++        "  • для Vercel нужен 0.0.0.0/0 — адреса функций не фиксированы;\n" +
++        "  • проверьте, что кластер не на паузе (бесплатный засыпает).",
++    );
++  } else if (/ENOTFOUND|querySrv|getaddrinfo/i.test(msg)) {
++    console.error("\nХост из строки не резолвится — проверьте адрес кластера после @.");
++  } else if (/not authorized/i.test(msg)) {
++    console.error(`\nЛогин прошёл, но нет прав на базу «${DB_NAME}». Дайте роль readWrite.`);
++  }
++
++  process.exit(1);
++} finally {
++  await client.close();
++}
+\ No newline at end of file
+diff --git a/src/app/admin/page.tsx b/src/app/admin/page.tsx
+new file mode 100644
+index 0000000..4d8bd64
+--- /dev/null
++++ b/src/app/admin/page.tsx
+@@ -0,0 +1,610 @@
++"use client";
++
++import { useCallback, useEffect, useState } from "react";
++import { services } from "@/config/catalog";
++import { weekdayNames, weekdayOrder } from "@/config/schedule";
++import { cn } from "@/lib/cn";
++import { formatDateLong, formatDuration, formatPrice } from "@/lib/format";
++import type { BookingRecord, Master, SalonSettings } from "@/types";
++
++type Tab = "schedule" | "masters" | "bookings";
++
++export default function AdminPage() {
++  const [authorized, setAuthorized] = useState<boolean | null>(null);
++  const [tab, setTab] = useState<Tab>("schedule");
++
++  useEffect(() => {
++    fetch("/api/admin/login")
++      .then((r) => r.json())
++      .then((j) => setAuthorized(Boolean(j.authorized)))
++      .catch(() => setAuthorized(false));
++  }, []);
++
++  if (authorized === null) {
++    return <Centered>Проверяем доступ…</Centered>;
++  }
++
++  if (!authorized) {
++    return <LoginForm onSuccess={() => setAuthorized(true)} />;
++  }
++
++  return (
++    <div className="mx-auto w-full max-w-3xl px-4 pb-24 pt-6">
++      <header className="mb-6 flex items-center justify-between gap-3">
++        <h1 className="font-display text-2xl">Управление салоном</h1>
++        <button
++          onClick={async () => {
++            await fetch("/api/admin/login", { method: "DELETE" });
++            setAuthorized(false);
++          }}
++          className="min-h-10 rounded-control border border-line px-3 text-sm text-muted"
++        >
++          Выйти
++        </button>
++      </header>
++
++      {/* Вкладки лентой — на телефоне помещаются в одну строку */}
++      <div className="rail mb-6">
++        {(
++          [
++            ["schedule", "График"],
++            ["masters", "Мастера"],
++            ["bookings", "Записи"],
++          ] as Array<[Tab, string]>
++        ).map(([id, label]) => (
++          <button
++            key={id}
++            onClick={() => setTab(id)}
++            className={cn(
++              "min-h-11 rounded-control border px-4 text-[15px] transition-colors",
++              tab === id ? "border-ink bg-accent text-accent-ink" : "border-line bg-elevated",
++            )}
++          >
++            {label}
++          </button>
++        ))}
++      </div>
++
++      {tab === "bookings" ? <BookingsTab /> : <SettingsTab tab={tab} />}
++    </div>
++  );
++}
++
++/* ------------------------------- Вход ---------------------------------- */
++
++function LoginForm({ onSuccess }: { onSuccess: () => void }) {
++  const [password, setPassword] = useState("");
++  const [error, setError] = useState<string | null>(null);
++  const [busy, setBusy] = useState(false);
++
++  async function submit() {
++    setBusy(true);
++    setError(null);
++
++    const res = await fetch("/api/admin/login", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ password }),
++    });
++    const json = await res.json();
++
++    setBusy(false);
++    if (json.ok) onSuccess();
++    else setError(json.error ?? "Не удалось войти");
++  }
++
++  return (
++    <Centered>
++      <div className="w-full max-w-sm rounded-card border border-line bg-elevated p-6">
++        <h1 className="mb-1 font-display text-xl">Вход для управляющей</h1>
++        <p className="mb-5 text-sm text-muted">График, мастера и записи салона.</p>
++
++        <input
++          type="password"
++          value={password}
++          autoComplete="current-password"
++          enterKeyHint="go"
++          onChange={(e) => setPassword(e.target.value)}
++          onKeyDown={(e) => e.key === "Enter" && submit()}
++          placeholder="Пароль"
++          className="w-full rounded-control border border-line bg-bg px-4 py-3.5 outline-none focus:border-ink"
++        />
++
++        {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
++
++        <button
++          onClick={submit}
++          disabled={busy || password.length === 0}
++          className="mt-4 min-h-12 w-full rounded-control bg-accent font-medium text-accent-ink disabled:opacity-40"
++        >
++          {busy ? "Проверяем…" : "Войти"}
++        </button>
++      </div>
++    </Centered>
++  );
++}
++
++/* --------------------------- График и мастера --------------------------- */
++
++function SettingsTab({ tab }: { tab: Tab }) {
++  const [settings, setSettings] = useState<SalonSettings | null>(null);
++  const [masters, setMasters] = useState<Master[]>([]);
++  const [status, setStatus] = useState<string | null>(null);
++  const [error, setError] = useState<string | null>(null);
++  const [dirty, setDirty] = useState(false);
++
++  useEffect(() => {
++    fetch("/api/admin/settings")
++      .then((r) => r.json())
++      .then((j) => {
++        if (j.ok) {
++          setSettings(j.data.settings);
++          setMasters(j.data.masters);
++        }
++      });
++  }, []);
++
++  const save = useCallback(async () => {
++    if (!settings) return;
++    setStatus("Сохраняем…");
++    setError(null);
++
++    const res = await fetch("/api/admin/settings", {
++      method: "PUT",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ settings, masters }),
++    });
++    const json = await res.json();
++
++    if (json.ok) {
++      setStatus("Сохранено");
++      setDirty(false);
++      setTimeout(() => setStatus(null), 2500);
++    } else {
++      setStatus(null);
++      setError(json.error ?? "Не удалось сохранить");
++    }
++  }, [settings, masters]);
++
++  if (!settings) return <p className="text-muted">Загружаем…</p>;
++
++  const patch = (p: Partial<SalonSettings>) => {
++    setSettings({ ...settings, ...p });
++    setDirty(true);
++  };
++
++  const patchMasters = (next: Master[]) => {
++    setMasters(next);
++    setDirty(true);
++  };
++
++  return (
++    <div className="space-y-6">
++      {tab === "schedule" && (
++        <>
++          <Card title="Рабочие часы" hint="Выключенный день пропадёт из календаря на сайте">
++            <div className="space-y-2">
++              {weekdayOrder.map((wd) => {
++                const day = settings.workingHours.find((d) => d.weekday === wd) ?? {
++                  weekday: wd,
++                  open: null,
++                  close: null,
++                };
++                const isOpen = Boolean(day.open && day.close);
++
++                return (
++                  <div
++                    key={wd}
++                    className="flex flex-wrap items-center gap-2 rounded-control border border-line px-3 py-2.5"
++                  >
++                    <button
++                      onClick={() =>
++                        patch({
++                          workingHours: settings.workingHours.map((d) =>
++                            d.weekday === wd
++                              ? isOpen
++                                ? { ...d, open: null, close: null }
++                                : { ...d, open: "10:00", close: "19:00" }
++                              : d,
++                          ),
++                        })
++                      }
++                      className={cn(
++                        "h-6 w-11 shrink-0 rounded-pill border transition-colors",
++                        isOpen ? "border-ink bg-accent" : "border-line bg-surface",
++                      )}
++                      aria-pressed={isOpen}
++                      aria-label={`${weekdayNames[wd]}: ${isOpen ? "рабочий" : "выходной"}`}
++                    >
++                      <span
++                        className={cn(
++                          "block h-5 w-5 rounded-pill bg-bg transition-transform",
++                          isOpen ? "translate-x-[22px]" : "translate-x-0.5",
++                        )}
++                      />
++                    </button>
++
++                    <span className="min-w-[104px] flex-1 text-[15px]">{weekdayNames[wd]}</span>
++
++                    {isOpen ? (
++                      <div className="flex items-center gap-1.5">
++                        <TimeInput
++                          value={day.open!}
++                          onChange={(v) =>
++                            patch({
++                              workingHours: settings.workingHours.map((d) =>
++                                d.weekday === wd ? { ...d, open: v } : d,
++                              ),
++                            })
++                          }
++                        />
++                        <span className="text-muted">—</span>
++                        <TimeInput
++                          value={day.close!}
++                          onChange={(v) =>
++                            patch({
++                              workingHours: settings.workingHours.map((d) =>
++                                d.weekday === wd ? { ...d, close: v } : d,
++                              ),
++                            })
++                          }
++                        />
++                      </div>
++                    ) : (
++                      <span className="text-sm text-muted">выходной</span>
++                    )}
++                  </div>
++                );
++              })}
++            </div>
++          </Card>
++
++          <Card
++            title="Разовые выходные"
++            hint="Праздники и отпуск. Эти даты закроются, даже если день недели рабочий"
++          >
++            <div className="mb-3 flex flex-wrap gap-2">
++              {settings.closedDates.length === 0 && (
++                <p className="text-sm text-muted">Пока ничего не добавлено</p>
++              )}
++              {settings.closedDates.map((d) => (
++                <button
++                  key={d}
++                  onClick={() =>
++                    patch({ closedDates: settings.closedDates.filter((x) => x !== d) })
++                  }
++                  className="flex min-h-10 items-center gap-2 rounded-pill border border-line px-3 text-sm"
++                >
++                  {formatDateLong(d)}
++                  <span className="text-muted">×</span>
++                </button>
++              ))}
++            </div>
++
++            <input
++              type="date"
++              className="min-h-12 w-full rounded-control border border-line bg-bg px-3"
++              onChange={(e) => {
++                const v = e.target.value;
++                if (v && !settings.closedDates.includes(v)) {
++                  patch({ closedDates: [...settings.closedDates, v].sort() });
++                }
++                e.target.value = "";
++              }}
++            />
++          </Card>
++
++          <Card title="Сетка записи">
++            <div className="grid gap-3 sm:grid-cols-2">
++              <label className="block">
++                <span className="mb-2 block text-sm text-muted">Шаг времени, мин</span>
++                <select
++                  value={settings.slotStepMin}
++                  onChange={(e) => patch({ slotStepMin: Number(e.target.value) })}
++                  className="min-h-12 w-full rounded-control border border-line bg-bg px-3"
++                >
++                  {[15, 30, 60].map((v) => (
++                    <option key={v} value={v}>
++                      {v}
++                    </option>
++                  ))}
++                </select>
++              </label>
++
++              <label className="block">
++                <span className="mb-2 block text-sm text-muted">Запись открыта на, дней</span>
++                <input
++                  type="number"
++                  min={1}
++                  max={365}
++                  value={settings.horizonDays}
++                  onChange={(e) => patch({ horizonDays: Number(e.target.value) })}
++                  className="min-h-12 w-full rounded-control border border-line bg-bg px-3"
++                />
++              </label>
++            </div>
++          </Card>
++        </>
++      )}
++
++      {tab === "masters" && (
++        <Card title="Мастера" hint="Клиент увидит только тех, кто делает все выбранные им процедуры">
++          <div className="space-y-3">
++            {masters.map((m, idx) => (
++              <MasterEditor
++                key={m.id}
++                master={m}
++                onChange={(next) =>
++                  patchMasters(masters.map((x, i) => (i === idx ? next : x)))
++                }
++                onRemove={() => patchMasters(masters.filter((_, i) => i !== idx))}
++              />
++            ))}
++          </div>
++
++          <button
++            onClick={() =>
++              patchMasters([
++                ...masters,
++                {
++                  id: `m${Date.now().toString(36)}`,
++                  name: "",
++                  role: "",
++                  active: true,
++                  serviceIds: [],
++                  weekdaysOff: [],
++                },
++              ])
++            }
++            className="mt-3 min-h-12 w-full rounded-control border border-dashed border-line text-[15px] text-muted"
++          >
++            + Добавить мастера
++          </button>
++        </Card>
++      )}
++
++      {/* Кнопка сохранения закреплена внизу: форма длинная, скроллить наверх неудобно */}
++      <div className="safe-b fixed inset-x-0 bottom-0 border-t border-line bg-bg/90 px-4 pt-3 backdrop-blur">
++        <div className="mx-auto flex max-w-3xl items-center gap-3">
++          <p className="flex-1 truncate text-sm text-muted">
++            {error ? <span className="text-red-500">{error}</span> : (status ?? (dirty ? "Есть несохранённые изменения" : "Всё сохранено"))}
++          </p>
++          <button
++            onClick={save}
++            disabled={!dirty}
++            className="min-h-12 rounded-control bg-accent px-6 font-medium text-accent-ink disabled:opacity-40"
++          >
++            Сохранить
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
++
++function MasterEditor({
++  master,
++  onChange,
++  onRemove,
++}: {
++  master: Master;
++  onChange: (m: Master) => void;
++  onRemove: () => void;
++}) {
++  return (
++    <div className="rounded-control border border-line p-3">
++      <div className="flex gap-2">
++        <input
++          value={master.name}
++          placeholder="Имя"
++          onChange={(e) => onChange({ ...master, name: e.target.value })}
++          className="min-h-11 w-full rounded-control border border-line bg-bg px-3"
++        />
++        <button
++          onClick={onRemove}
++          aria-label="Удалить мастера"
++          className="min-h-11 shrink-0 rounded-control border border-line px-3 text-muted"
++        >
++          ×
++        </button>
++      </div>
++
++      <input
++        value={master.role}
++        placeholder="Специализация"
++        onChange={(e) => onChange({ ...master, role: e.target.value })}
++        className="mt-2 min-h-11 w-full rounded-control border border-line bg-bg px-3 text-sm"
++      />
++
++      <p className="mb-2 mt-4 text-sm text-muted">Услуги — пусто значит все</p>
++      <div className="flex flex-wrap gap-1.5">
++        {services.map((s) => {
++          const on = master.serviceIds.includes(s.id);
++          return (
++            <button
++              key={s.id}
++              onClick={() =>
++                onChange({
++                  ...master,
++                  serviceIds: on
++                    ? master.serviceIds.filter((x) => x !== s.id)
++                    : [...master.serviceIds, s.id],
++                })
++              }
++              className={cn(
++                "min-h-10 rounded-pill border px-3 text-sm",
++                on ? "border-ink bg-accent text-accent-ink" : "border-line",
++              )}
++            >
++              {s.title}
++            </button>
++          );
++        })}
++      </div>
++
++      <p className="mb-2 mt-4 text-sm text-muted">Личные выходные</p>
++      <div className="flex flex-wrap gap-1.5">
++        {weekdayOrder.map((wd) => {
++          const off = master.weekdaysOff.includes(wd);
++          return (
++            <button
++              key={wd}
++              onClick={() =>
++                onChange({
++                  ...master,
++                  weekdaysOff: off
++                    ? master.weekdaysOff.filter((x) => x !== wd)
++                    : [...master.weekdaysOff, wd],
++                })
++              }
++              className={cn(
++                "h-10 w-10 rounded-pill border text-sm",
++                off ? "border-ink bg-accent text-accent-ink" : "border-line",
++              )}
++            >
++              {weekdayNames[wd].slice(0, 2)}
++            </button>
++          );
++        })}
++      </div>
++
++      <label className="mt-4 flex items-center gap-2 text-sm">
++        <input
++          type="checkbox"
++          checked={master.active}
++          onChange={(e) => onChange({ ...master, active: e.target.checked })}
++          className="h-5 w-5"
++        />
++        Принимает записи
++      </label>
++    </div>
++  );
++}
++
++/* ------------------------------- Записи --------------------------------- */
++
++function BookingsTab() {
++  const [items, setItems] = useState<BookingRecord[] | null>(null);
++
++  const load = useCallback(() => {
++    fetch("/api/admin/bookings")
++      .then((r) => r.json())
++      .then((j) => setItems(j.ok ? j.data : []));
++  }, []);
++
++  useEffect(load, [load]);
++
++  async function setStatus(id: string, status: BookingRecord["status"]) {
++    await fetch("/api/admin/bookings", {
++      method: "PATCH",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ id, status }),
++    });
++    load();
++  }
++
++  if (!items) return <p className="text-muted">Загружаем…</p>;
++  if (items.length === 0) return <p className="text-muted">Записей пока нет.</p>;
++
++  return (
++    <div className="space-y-2">
++      {items.map((b) => (
++        <div key={b.id} className="rounded-control border border-line p-4">
++          <div className="flex items-baseline justify-between gap-3">
++            <p className="text-[15px]">
++              {formatDateLong(b.date)}, {b.time}
++            </p>
++            <span
++              className={cn(
++                "shrink-0 rounded-pill px-2 py-0.5 text-xs",
++                b.status === "confirmed" && "bg-accent text-accent-ink",
++                b.status === "cancelled" && "bg-surface text-muted line-through",
++                b.status === "new" && "border border-line",
++              )}
++            >
++              {b.status === "new" ? "новая" : b.status === "confirmed" ? "подтверждена" : "отменена"}
++            </span>
++          </div>
++
++          <p className="mt-1 text-sm text-muted">
++            {b.name} · <a href={`tel:${b.phone}`} className="text-ink underline underline-offset-2">{b.phone}</a> · {b.masterName}
++          </p>
++
++          <ul className="mt-2 space-y-0.5 text-sm text-muted">
++            {b.lines.map((l) => (
++              <li key={`${l.serviceId}-${l.variantId}`}>
++                {l.serviceTitle} — {l.variantLabel}, {formatDuration(l.durationMin)}
++              </li>
++            ))}
++          </ul>
++
++          <p className="mt-2 text-sm">
++            {formatDuration(b.totalDurationMin)} · {formatPrice(b.totalPrice, b.currency)}
++          </p>
++
++          {b.comment && <p className="mt-2 text-sm text-muted">«{b.comment}»</p>}
++
++          {b.status !== "cancelled" && (
++            <div className="mt-3 flex gap-2">
++              {b.status === "new" && (
++                <button
++                  onClick={() => setStatus(b.id, "confirmed")}
++                  className="min-h-11 flex-1 rounded-control bg-accent text-sm text-accent-ink"
++                >
++                  Подтвердить
++                </button>
++              )}
++              <button
++                onClick={() => setStatus(b.id, "cancelled")}
++                className="min-h-11 flex-1 rounded-control border border-line text-sm"
++              >
++                Отменить
++              </button>
++            </div>
++          )}
++        </div>
++      ))}
++    </div>
++  );
++}
++
++/* ------------------------------ Мелочи ---------------------------------- */
++
++function Card({
++  title,
++  hint,
++  children,
++}: {
++  title: string;
++  hint?: string;
++  children: React.ReactNode;
++}) {
++  return (
++    <section className="rounded-card border border-line bg-elevated p-4">
++      <h2 className="text-[17px]">{title}</h2>
++      {hint && <p className="mb-4 mt-1 text-sm text-muted">{hint}</p>}
++      {!hint && <div className="mb-4" />}
++      {children}
++    </section>
++  );
++}
++
++function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
++  return (
++    <input
++      type="time"
++      value={value}
++      step={900}
++      onChange={(e) => onChange(e.target.value)}
++      className="min-h-11 rounded-control border border-line bg-bg px-2 text-[15px] tabular-nums"
++    />
++  );
++}
++
++function Centered({ children }: { children: React.ReactNode }) {
++  return (
++    <div className="flex min-h-[100dvh] items-center justify-center px-4 text-muted">
++      {children}
++    </div>
++  );
++}
+diff --git a/src/app/api/admin/bookings/route.ts b/src/app/api/admin/bookings/route.ts
+new file mode 100644
+index 0000000..72c246a
+--- /dev/null
++++ b/src/app/api/admin/bookings/route.ts
+@@ -0,0 +1,37 @@
++import { NextResponse } from "next/server";
++import { cookies } from "next/headers";
++import { adminCookieName, verifyToken } from "@/lib/admin-auth";
++import { bookingRepository } from "@/services/booking-repository";
++import type { BookingRecord } from "@/types";
++
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++
++async function guard() {
++  const jar = await cookies();
++  return verifyToken(jar.get(adminCookieName)?.value);
++}
++
++export async function GET() {
++  if (!(await guard())) return NextResponse.json({ ok: false }, { status: 401 });
++  return NextResponse.json({ ok: true, data: await bookingRepository.listAll(200) });
++}
++
++/** Подтвердить или отменить запись */
++export async function PATCH(request: Request) {
++  if (!(await guard())) return NextResponse.json({ ok: false }, { status: 401 });
++
++  const { id, status } = (await request.json().catch(() => ({}))) as {
++    id?: string;
++    status?: BookingRecord["status"];
++  };
++
++  if (!id || !status || !["new", "confirmed", "cancelled"].includes(status)) {
++    return NextResponse.json({ ok: false, error: "Нужны id и status" }, { status: 400 });
++  }
++
++  const record = await bookingRepository.setStatus(id, status);
++  if (!record) return NextResponse.json({ ok: false, error: "Запись не найдена" }, { status: 404 });
++
++  return NextResponse.json({ ok: true, data: record });
++}
+diff --git a/src/app/api/admin/login/route.ts b/src/app/api/admin/login/route.ts
+new file mode 100644
+index 0000000..55fd0f3
+--- /dev/null
++++ b/src/app/api/admin/login/route.ts
+@@ -0,0 +1,50 @@
++import { NextResponse } from "next/server";
++import {
++  adminCookieName,
++  checkPassword,
++  cookieOptions,
++  isAdminConfigured,
++  issueToken,
++  verifyToken,
++} from "@/lib/admin-auth";
++import { cookies } from "next/headers";
++
++export const runtime = "nodejs";
++
++/** Проверка активной сессии — админка спрашивает при загрузке */
++export async function GET() {
++  const jar = await cookies();
++  return NextResponse.json({
++    ok: true,
++    authorized: verifyToken(jar.get(adminCookieName)?.value),
++    configured: isAdminConfigured,
++  });
++}
++
++export async function POST(request: Request) {
++  if (!isAdminConfigured) {
++    return NextResponse.json(
++      { ok: false, error: "ADMIN_PASSWORD не задан на сервере" },
++      { status: 503 },
++    );
++  }
++
++  const { password } = (await request.json().catch(() => ({}))) as { password?: string };
++
++  if (!password || !checkPassword(password)) {
++    // Пауза против перебора: без неё пароль подбирается сотнями попыток в секунду
++    await new Promise((r) => setTimeout(r, 700));
++    return NextResponse.json({ ok: false, error: "Неверный пароль" }, { status: 401 });
++  }
++
++  const res = NextResponse.json({ ok: true });
++  res.cookies.set(adminCookieName, issueToken(), cookieOptions);
++  return res;
++}
++
++/** Выход */
++export async function DELETE() {
++  const res = NextResponse.json({ ok: true });
++  res.cookies.set(adminCookieName, "", { ...cookieOptions, maxAge: 0 });
++  return res;
++}
+diff --git a/src/app/api/admin/settings/route.ts b/src/app/api/admin/settings/route.ts
+new file mode 100644
+index 0000000..b9a2ab0
+--- /dev/null
++++ b/src/app/api/admin/settings/route.ts
+@@ -0,0 +1,100 @@
++import { NextResponse } from "next/server";
++import { cookies } from "next/headers";
++import { adminCookieName, verifyToken } from "@/lib/admin-auth";
++import { settingsRepository } from "@/services/settings-repository";
++import type { Master, SalonSettings } from "@/types";
++
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++
++async function guard() {
++  const jar = await cookies();
++  return verifyToken(jar.get(adminCookieName)?.value);
++}
++
++const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
++const DATE = /^\d{4}-\d{2}-\d{2}$/;
++
++/**
++ * Санитайзер настроек.
++ * Админка — тоже клиент, и из неё в базу не должно попасть ничего,
++ * что потом уронит расчёт слотов: время закрытия раньше открытия,
++ * шаг сетки в ноль или горизонт на десять лет.
++ */
++function cleanSettings(input: SalonSettings): { value?: SalonSettings; error?: string } {
++  const workingHours = [0, 1, 2, 3, 4, 5, 6].map((weekday) => {
++    const day = input.workingHours?.find((d) => d.weekday === weekday);
++    if (!day?.open || !day?.close) return { weekday, open: null, close: null };
++
++    if (!TIME.test(day.open) || !TIME.test(day.close)) {
++      throw new Error(`Некорректное время в дне ${weekday}`);
++    }
++    if (day.open >= day.close) {
++      throw new Error(`Закрытие раньше открытия в дне ${weekday}`);
++    }
++    return { weekday, open: day.open, close: day.close };
++  });
++
++  const closedDates = Array.from(new Set(input.closedDates ?? []))
++    .filter((d) => DATE.test(d))
++    .sort();
++
++  const slotStepMin = Math.min(120, Math.max(5, Math.round(input.slotStepMin || 30)));
++  const horizonDays = Math.min(365, Math.max(1, Math.round(input.horizonDays || 60)));
++
++  if (workingHours.every((d) => !d.open)) {
++    return { error: "Нельзя закрыть все дни недели — записаться будет некуда" };
++  }
++
++  return { value: { workingHours, closedDates, slotStepMin, horizonDays } };
++}
++
++function cleanMasters(input: Master[]): Master[] {
++  return (input ?? [])
++    .filter((m) => m?.name?.trim())
++    .map((m, i) => ({
++      id: (m.id || `m${i}`).toString().slice(0, 40),
++      name: m.name.trim().slice(0, 60),
++      role: (m.role ?? "").trim().slice(0, 80),
++      avatar: m.avatar,
++      active: m.active !== false,
++      serviceIds: Array.isArray(m.serviceIds) ? m.serviceIds : [],
++      weekdaysOff: Array.isArray(m.weekdaysOff)
++        ? m.weekdaysOff.filter((d) => d >= 0 && d <= 6)
++        : [],
++    }));
++}
++
++export async function GET() {
++  if (!(await guard())) return NextResponse.json({ ok: false }, { status: 401 });
++  return NextResponse.json({ ok: true, data: await settingsRepository.read() });
++}
++
++export async function PUT(request: Request) {
++  if (!(await guard())) return NextResponse.json({ ok: false }, { status: 401 });
++
++  const body = (await request.json().catch(() => null)) as {
++    settings?: SalonSettings;
++    masters?: Master[];
++  } | null;
++
++  if (!body?.settings) {
++    return NextResponse.json({ ok: false, error: "Нет данных" }, { status: 400 });
++  }
++
++  try {
++    const { value, error } = cleanSettings(body.settings);
++    if (error || !value) {
++      return NextResponse.json({ ok: false, error: error ?? "Ошибка" }, { status: 422 });
++    }
++
++    const store = await settingsRepository.write({
++      settings: value,
++      masters: cleanMasters(body.masters ?? []),
++    });
++
++    return NextResponse.json({ ok: true, data: store });
++  } catch (e) {
++    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 422 });
++  }
++}
+diff --git a/src/app/api/availability/route.ts b/src/app/api/availability/route.ts
+new file mode 100644
+index 0000000..f391467
+--- /dev/null
++++ b/src/app/api/availability/route.ts
+@@ -0,0 +1,23 @@
++import { NextResponse } from "next/server";
++import { getAvailability } from "@/services/availability";
++
++export const runtime = "nodejs";
++/** Расписание меняется в админке — кэшировать ответ нельзя */
++export const dynamic = "force-dynamic";
++
++/** GET /api/availability?masterId=anna — график и занятость для выбранного мастера */
++export async function GET(request: Request) {
++  const { searchParams } = new URL(request.url);
++  const masterId = searchParams.get("masterId");
++
++  try {
++    const data = await getAvailability(masterId || null);
++    return NextResponse.json({ ok: true, data });
++  } catch (e) {
++    console.error("[availability]", e);
++    return NextResponse.json(
++      { ok: false, error: "Не удалось загрузить расписание" },
++      { status: 503 },
++    );
++  }
++}
+diff --git a/src/app/api/book/route.ts b/src/app/api/book/route.ts
+index 14390bc..f6c88b9 100644
+--- a/src/app/api/book/route.ts
++++ b/src/app/api/book/route.ts
+@@ -1,19 +1,22 @@
+ import { NextResponse } from "next/server";
+-import { getService } from "@/config/catalog";
+ import { buildSlots } from "@/lib/slots";
++import { MAX_ITEMS, exceedsWorkday, mastersForItems, summarize, toLines } from "@/lib/selection";
++import { getAvailability } from "@/services/availability";
+ import { bookingRepository } from "@/services/booking-repository";
+ import { notifyBooking } from "@/services/notifications";
+ import { uploads } from "@/config/uploads";
+-import type { ApiResult, BookingPhoto, BookingRecord } from "@/types";
++import type { ApiResult, BookingItem, BookingPhoto, BookingRecord } from "@/types";
+ 
+ export const runtime = "nodejs";
+ 
+ interface Body {
+-  serviceId?: string;
++  items?: BookingItem[];
++  masterId?: string | null;
+   date?: string;
+   time?: string;
+   name?: string;
+   phone?: string;
++  telegram?: string;
+   comment?: string;
+   photos?: BookingPhoto[];
+ }
+@@ -54,66 +57,101 @@ function validatePhotos(photos: BookingPhoto[] | undefined): {
+   return { clean };
+ }
+ 
+-/** Валидация на сервере. Клиентская — только для UX, доверять ей нельзя. */
+-function validate(body: Body) {
++export async function POST(request: Request) {
++  let body: Body;
++  try {
++    body = await request.json();
++  } catch {
++    return NextResponse.json<ApiResult<never>>(
++      { ok: false, error: "Некорректный запрос" },
++      { status: 400 },
++    );
++  }
++
+   const fields: Record<string, string> = {};
+ 
+-  const service = getService(body.serviceId ?? null);
+-  if (!service) fields.serviceId = "Выберите услугу";
++  /**
++   * Цены и длительности НЕ берутся из запроса: клиент присылает только id
++   * услуги и варианта, всё остальное считается заново по каталогу.
++   * Иначе достаточно подменить тело запроса, чтобы записаться за бесценок.
++   */
++  const rawItems = Array.isArray(body.items) ? body.items.slice(0, MAX_ITEMS) : [];
++  const summary = summarize(rawItems);
++
++  if (summary.items.length === 0) fields.items = "Выберите хотя бы одну процедуру";
++  else if (summary.items.length !== rawItems.length)
++    fields.items = "Одна из процедур больше не доступна";
++
++  const uniqueServices = new Set(rawItems.map((i) => i.serviceId));
++  if (uniqueServices.size !== rawItems.length) fields.items = "Процедура выбрана дважды";
++
+   if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) fields.date = "Выберите дату";
+   if (!body.time || !/^\d{2}:\d{2}$/.test(body.time)) fields.time = "Выберите время";
+   if (!body.name || body.name.trim().length < 2) fields.name = "Введите имя";
+   if (!body.phone || body.phone.replace(/\D/g, "").length < 9) fields.phone = "Проверьте номер";
+ 
+-  // слот всё ещё свободен?
+-  if (service && body.date && body.time && !fields.date && !fields.time) {
+-    const slot = buildSlots(body.date, service.durationMin).find((s) => s.time === body.time);
+-    if (!slot) fields.time = "В этот день такого времени нет";
+-    else if (!slot.available) fields.time = "Это время уже заняли — выберите другое";
+-  }
+-
+   const photos = validatePhotos(body.photos);
+   if (photos.error) fields.photos = photos.error;
+ 
+-  return { service, fields, photos: photos.clean };
+-}
++  // График и занятость берём из того же источника, что и клиент,
++  // но заново: пока человек заполнял форму, управляющая могла закрыть день,
++  // а соседнюю бронь — поставить на это же окно.
++  const masterId = body.masterId ?? null;
++  const availability = await getAvailability(masterId);
+ 
+-export async function POST(request: Request) {
+-  let body: Body;
+-  try {
+-    body = await request.json();
+-  } catch {
+-    return NextResponse.json<ApiResult<never>>(
+-      { ok: false, error: "Некорректный запрос" },
+-      { status: 400 },
++  if (masterId && !availability.masters.some((m) => m.id === masterId)) {
++    fields.masterId = "Этот мастер больше не принимает";
++  } else if (masterId && !mastersForItems(availability.masters, rawItems).some((m) => m.id === masterId)) {
++    fields.masterId = "Мастер не делает одну из выбранных процедур";
++  }
++
++  if (exceedsWorkday(availability, summary.durationMin)) {
++    fields.items = "Столько процедур не помещается в один визит";
++  }
++
++  if (
++    summary.durationMin &&
++    body.date &&
++    body.time &&
++    !fields.items &&
++    !fields.date &&
++    !fields.time &&
++    !fields.masterId
++  ) {
++    const slot = buildSlots(availability, body.date, summary.durationMin).find(
++      (s) => s.time === body.time,
+     );
++    if (!slot) fields.time = "В этот день такого времени нет";
++    else if (!slot.available) fields.time = "Это время уже заняли — выберите другое";
+   }
+ 
+-  const { service, fields, photos } = validate(body);
+-  if (!service || Object.keys(fields).length > 0) {
++  if (Object.keys(fields).length > 0) {
+     return NextResponse.json<ApiResult<never>>(
+       { ok: false, error: "Проверьте поля формы", fields },
+       { status: 422 },
+     );
+   }
+ 
++  const master = availability.masters.find((m) => m.id === masterId) ?? null;
++
+   const record = await bookingRepository.create({
+-    serviceId: service.id,
+-    serviceTitle: service.title,
+-    durationMin: service.durationMin,
+-    price: service.price,
+-    currency: service.currency,
++    lines: toLines(rawItems),
++    masterId: master?.id ?? null,
++    masterName: master?.name ?? "любой свободный",
++    totalDurationMin: summary.durationMin,
++    totalPrice: summary.price,
++    currency: summary.currency,
+     date: body.date!,
+     time: body.time!,
+     name: body.name!.trim(),
+     phone: body.phone!.trim(),
++    telegram: body.telegram?.trim() || undefined,
+     comment: body.comment?.trim() || undefined,
+-    photos,
++    photos: photos.clean,
+     source: "web",
+   });
+ 
+-  // Уведомления не блокируют ответ клиенту дольше, чем нужно,
+-  // и не роняют бронь при недоступности Telegram.
++  // Уведомления не роняют бронь при недоступности Telegram.
+   const delivery = await notifyBooking(record);
+ 
+   return NextResponse.json<ApiResult<BookingRecord & { delivery: typeof delivery }>>({
+@@ -122,18 +160,36 @@ export async function POST(request: Request) {
+   });
+ }
+ 
+-/** GET /api/book?date=YYYY-MM-DD&serviceId=... — свободные слоты */
++/**
++ * GET /api/book?date=YYYY-MM-DD&items=haircut:medium,manicure:gel&masterId=anna
++ * Свободные слоты под суммарную длительность выбранного набора.
++ */
+ export async function GET(request: Request) {
+   const { searchParams } = new URL(request.url);
+   const date = searchParams.get("date");
+-  const service = getService(searchParams.get("serviceId"));
+ 
+-  if (!date || !service) {
++  const items: BookingItem[] = (searchParams.get("items") ?? "")
++    .split(",")
++    .filter(Boolean)
++    .map((pair) => {
++      const [serviceId, variantId] = pair.split(":");
++      return { serviceId, variantId };
++    });
++
++  const summary = summarize(items);
++
++  if (!date || summary.items.length === 0) {
+     return NextResponse.json<ApiResult<never>>(
+-      { ok: false, error: "Нужны параметры date и serviceId" },
++      { ok: false, error: "Нужны параметры date и items" },
+       { status: 400 },
+     );
+   }
+ 
+-  return NextResponse.json({ ok: true, data: buildSlots(date, service.durationMin) });
+-}
+\ No newline at end of file
++  const availability = await getAvailability(searchParams.get("masterId"));
++
++  return NextResponse.json({
++    ok: true,
++    data: buildSlots(availability, date, summary.durationMin),
++    totalDurationMin: summary.durationMin,
++  });
++}
+diff --git a/src/app/layout.tsx b/src/app/layout.tsx
+index 5db007d..872573e 100644
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -46,7 +46,7 @@ const jsonLd = {
+   telephone: site.contacts.phone,
+   email: site.contacts.email,
+   address: { "@type": "PostalAddress", streetAddress: site.contacts.address, addressLocality: site.city },
+-  openingHours: ["Mo-Fr 09:00-20:00", "Sa 10:00-18:00"],
++  openingHours: ["Mo-Fr 09:00-20:00", "Sa-Su 10:00-18:00"],
+ };
+ 
+ export default function RootLayout({ children }: { children: React.ReactNode }) {
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 087b60e..9b7f683 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -2,6 +2,7 @@ import { Footer } from "@/blocks/Footer";
+ import { Navbar } from "@/components/layout/Navbar";
+ import { StickyBookBar } from "@/components/layout/StickyBookBar";
+ import { pageBlocks } from "@/config/blocks";
++import { AvailabilityProvider } from "@/features/booking/AvailabilityProvider";
+ import { BookingProvider } from "@/features/booking/BookingProvider";
+ import { BookingSheet } from "@/features/booking/BookingSheet";
+ 
+@@ -11,7 +12,8 @@ import { BookingSheet } from "@/features/booking/BookingSheet";
+  */
+ export default function HomePage() {
+   return (
+-    <BookingProvider>
++    <AvailabilityProvider>
++      <BookingProvider>
+       <Navbar />
+ 
+       <main>
+@@ -25,6 +27,7 @@ export default function HomePage() {
+       <Footer />
+       <StickyBookBar />
+       <BookingSheet />
+-    </BookingProvider>
++      </BookingProvider>
++    </AvailabilityProvider>
+   );
+ }
+diff --git a/src/blocks/Hero.tsx b/src/blocks/Hero.tsx
+index 187f01b..6f84add 100644
+--- a/src/blocks/Hero.tsx
++++ b/src/blocks/Hero.tsx
+@@ -4,9 +4,9 @@ import Image from "next/image";
+ import { motion } from "framer-motion";
+ import { Container } from "@/components/ui/Container";
+ import { Button } from "@/components/ui/Button";
+-import { services } from "@/config/catalog";
++import { defaultVariant, minPrice, services } from "@/config/catalog";
+ import { site } from "@/config/site";
+-import { formatDuration, formatPrice } from "@/lib/format";
++import { formatPrice } from "@/lib/format";
+ import { useBooking } from "@/features/booking/BookingProvider";
+ 
+ /**
+@@ -15,12 +15,19 @@ import { useBooking } from "@/features/booking/BookingProvider";
+  * На мобиле карточка выбора прижата к низу экрана — в зоне большого пальца.
+  */
+ export function Hero() {
+-  const { open, patch } = useBooking();
++  const { open, toggle } = useBooking();
+   const quick = services.slice(0, 3);
+ 
++  /**
++   * Быстрый старт подставляет средний вариант и открывает шаг выбора:
++   * человек сразу видит, что длительность можно поменять,
++   * и что процедур можно взять несколько.
++   */
+   const start = (serviceId: string) => {
+-    patch({ serviceId, time: null });
+-    open(2);
++    const service = services.find((s) => s.id === serviceId);
++    if (!service) return;
++    toggle({ serviceId, variantId: defaultVariant(service).id });
++    open(1);
+   };
+ 
+   return (
+@@ -64,7 +71,9 @@ export function Hero() {
+             className="mt-7 md:mt-0"
+           >
+             <div className="rounded-card border border-line bg-elevated/85 p-4 shadow-lift backdrop-blur-xl md:p-6">
+-              <p className="mb-3 text-sm text-muted">Выберите услугу — покажем свободное время</p>
++              <p className="mb-3 text-sm text-muted">
++                Выберите процедуры — покажем свободное время
++              </p>
+ 
+               <div className="space-y-2">
+                 {quick.map((s) => (
+@@ -75,10 +84,12 @@ export function Hero() {
+                   >
+                     <span className="min-w-0">
+                       <span className="block truncate text-[15px]">{s.title}</span>
+-                      <span className="text-sm text-muted">{formatDuration(s.durationMin)}</span>
++                      <span className="text-sm text-muted">
++                        {s.variants.length} варианта по времени
++                      </span>
+                     </span>
+                     <span className="shrink-0 text-[15px] tabular-nums text-muted">
+-                      {formatPrice(s.price, s.currency)}
++                      от {formatPrice(minPrice(s), s.currency)}
+                     </span>
+                   </button>
+                 ))}
+diff --git a/src/blocks/Services.tsx b/src/blocks/Services.tsx
+index eba4c5e..3267fe0 100644
+--- a/src/blocks/Services.tsx
++++ b/src/blocks/Services.tsx
+@@ -3,7 +3,7 @@
+ import Image from "next/image";
+ import { Section } from "@/components/ui/Section";
+ import { Card } from "@/components/ui/Card";
+-import { services } from "@/config/catalog";
++import { defaultVariant, minPrice, services } from "@/config/catalog";
+ import { formatDuration, formatPrice } from "@/lib/format";
+ import { useBooking } from "@/features/booking/BookingProvider";
+ 
+@@ -13,14 +13,14 @@ import { useBooking } from "@/features/booking/BookingProvider";
+  * а горизонтальный скролл прячет половину каталога.
+  */
+ export function Services() {
+-  const { patch, open } = useBooking();
++  const { toggle, open } = useBooking();
+ 
+   return (
+     <Section
+       id="services"
+       eyebrow="Услуги"
+       title="Прайс без звёздочек"
+-      lead="Цена указана за среднюю длину волос. Если нужен больший объём состава, мастер назовёт итог до начала работы."
++      lead="У каждой процедуры несколько вариантов по времени — от короткого до полного. Точная длительность выбирается при записи, чтобы мастер заложил нужное окно."
+       className="bg-surface"
+     >
+       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+@@ -28,8 +28,8 @@ export function Services() {
+           <Card key={s.id} className="overflow-hidden hover:shadow-lift">
+             <button
+               onClick={() => {
+-                patch({ serviceId: s.id, time: null });
+-                open(2);
++                toggle({ serviceId: s.id, variantId: defaultVariant(s).id });
++                open(1);
+               }}
+               className="flex w-full items-center gap-4 p-3 text-left sm:block sm:p-0"
+             >
+@@ -46,9 +46,14 @@ export function Services() {
+               <div className="min-w-0 flex-1 sm:p-5">
+                 <div className="flex items-baseline justify-between gap-3">
+                   <h3 className="truncate text-[17px]">{s.title}</h3>
+-                  <span className="shrink-0 tabular-nums">{formatPrice(s.price, s.currency)}</span>
++                  <span className="shrink-0 tabular-nums">
++                    от {formatPrice(minPrice(s), s.currency)}
++                  </span>
+                 </div>
+-                <p className="mt-1 text-sm text-muted">{formatDuration(s.durationMin)}</p>
++                <p className="mt-1 text-sm text-muted">
++                  {formatDuration(Math.min(...s.variants.map((v) => v.durationMin)))} —{" "}
++                  {formatDuration(Math.max(...s.variants.map((v) => v.durationMin)))}
++                </p>
+                 <p className="mt-2 hidden text-sm leading-relaxed text-muted sm:block">
+                   {s.description}
+                 </p>
+diff --git a/src/config/catalog.ts b/src/config/catalog.ts
+index 8297551..b5c5488 100644
+--- a/src/config/catalog.ts
++++ b/src/config/catalog.ts
+@@ -2,6 +2,12 @@ import type { Service } from "@/types";
+ 
+ /**
+  * КАТАЛОГ УСЛУГ — mock-данные.
++ *
++ * У каждой услуги минимум один вариант. Вариант — это связка
++ * «длительность + цена»: маникюр без покрытия занимает час,
++ * с дизайном — два с половиной, и мастеру нужно знать это до визита,
++ * иначе расписание поедет.
++ *
+  * Позже заменяется на fetch из БД. Форма объекта остаётся той же.
+  */
+ export const services: Service[] = [
+@@ -9,56 +15,71 @@ export const services: Service[] = [
+     id: "haircut",
+     title: "Стрижка",
+     category: "hair",
+-    durationMin: 90,
+-    price: 1200,
+     currency: "Kč",
+     description: "Консультация, мытьё, стрижка и укладка.",
+     image:
+       "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=800&q=70",
++    variants: [
++      { id: "short", label: "Короткие волосы", durationMin: 60, price: 900 },
++      { id: "medium", label: "Средние волосы", durationMin: 90, price: 1200 },
++      { id: "long", label: "Длинные волосы", durationMin: 120, price: 1500 },
++    ],
+   },
+   {
+     id: "coloring",
+     title: "Окрашивание",
+     category: "hair",
+-    durationMin: 180,
+-    price: 3400,
+     currency: "Kč",
+     description: "Подбор тона, окрашивание, уход и укладка.",
+     image:
+       "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=70",
++    variants: [
++      { id: "toning", label: "Тонирование", durationMin: 120, price: 2400 },
++      { id: "single", label: "В один тон", durationMin: 180, price: 3400 },
++      { id: "complex", label: "Сложное окрашивание", durationMin: 240, price: 5200 },
++    ],
+   },
+   {
+     id: "styling",
+     title: "Укладка",
+     category: "hair",
+-    durationMin: 60,
+-    price: 900,
+     currency: "Kč",
+     description: "Вечерняя или повседневная.",
+     image:
+       "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?auto=format&fit=crop&w=800&q=70",
++    variants: [
++      { id: "daily", label: "Повседневная", durationMin: 45, price: 700 },
++      { id: "evening", label: "Вечерняя", durationMin: 90, price: 1400 },
++    ],
+   },
+   {
+     id: "manicure",
+-    title: "Маникюр с покрытием",
++    title: "Маникюр",
+     category: "nails",
+-    durationMin: 120,
+-    price: 1100,
+     currency: "Kč",
+-    description: "Аппаратный маникюр, гель-лак, уход за кутикулой.",
++    description: "Аппаратный маникюр, уход за кутикулой, покрытие.",
+     image:
+       "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=800&q=70",
++    variants: [
++      { id: "plain", label: "Без покрытия", durationMin: 60, price: 700 },
++      { id: "gel", label: "С гель-лаком", durationMin: 120, price: 1100 },
++      { id: "design", label: "С дизайном", durationMin: 150, price: 1500 },
++      { id: "extension", label: "Наращивание", durationMin: 180, price: 2200 },
++    ],
+   },
+   {
+     id: "brows",
+     title: "Брови и ресницы",
+     category: "brows",
+-    durationMin: 60,
+-    price: 800,
+     currency: "Kč",
+     description: "Коррекция формы, окрашивание, ламинирование.",
+     image:
+       "https://images.unsplash.com/photo-1583001931096-959e9a1a6223?auto=format&fit=crop&w=800&q=70",
++    variants: [
++      { id: "shape", label: "Коррекция бровей", durationMin: 30, price: 500 },
++      { id: "tint", label: "Коррекция и окрашивание", durationMin: 60, price: 800 },
++      { id: "lamination", label: "Ламинирование", durationMin: 90, price: 1300 },
++    ],
+   },
+ ];
+ 
+@@ -69,6 +90,20 @@ export const categoryLabels: Record<Service["category"], string> = {
+   care: "Уход",
+ };
+ 
+-export function getService(id: string | null) {
++export function getService(id: string | null | undefined) {
+   return services.find((s) => s.id === id) ?? null;
+ }
++
++export function getVariant(serviceId: string, variantId: string) {
++  return getService(serviceId)?.variants.find((v) => v.id === variantId) ?? null;
++}
++
++/** Самый дешёвый вариант — для витрины «от 700 Kč» */
++export function minPrice(service: Service) {
++  return Math.min(...service.variants.map((v) => v.price));
++}
++
++/** Вариант по умолчанию для быстрого старта из Hero и карточек услуг */
++export function defaultVariant(service: Service) {
++  return service.variants[Math.min(1, service.variants.length - 1)];
++}
+diff --git a/src/config/schedule.ts b/src/config/schedule.ts
+index df98b10..a662b78 100644
+--- a/src/config/schedule.ts
++++ b/src/config/schedule.ts
+@@ -1,26 +1,72 @@
+-import type { WorkingDay } from "@/types";
++import type { Master, SalonSettings } from "@/types";
+ 
+-/** График салона. Позже приедет из админки. */
+-export const workingHours: WorkingDay[] = [
+-  { weekday: 1, open: "09:00", close: "20:00" },
+-  { weekday: 2, open: "09:00", close: "20:00" },
+-  { weekday: 3, open: "09:00", close: "20:00" },
+-  { weekday: 4, open: "09:00", close: "20:00" },
+-  { weekday: 5, open: "09:00", close: "20:00" },
+-  { weekday: 6, open: "10:00", close: "18:00" },
+-  { weekday: 0, open: null, close: null }, // воскресенье
++/**
++ * ЗНАЧЕНИЯ ПО УМОЛЧАНИЮ.
++ *
++ * Это уже не «настройки салона», а стартовый набор: при первом запуске
++ * они копируются в хранилище, дальше управляющая правит их через /admin,
++ * и код сюда больше не заглядывает.
++ */
++export const defaultSettings: SalonSettings = {
++  workingHours: [
++    { weekday: 1, open: "09:00", close: "20:00" },
++    { weekday: 2, open: "09:00", close: "20:00" },
++    { weekday: 3, open: "09:00", close: "20:00" },
++    { weekday: 4, open: "09:00", close: "20:00" },
++    { weekday: 5, open: "09:00", close: "20:00" },
++    { weekday: 6, open: "10:00", close: "18:00" },
++    { weekday: 0, open: "10:00", close: "18:00" },
++  ],
++  closedDates: [],
++  slotStepMin: 30,
++  horizonDays: 60,
++};
++
++export const defaultMasters: Master[] = [
++  {
++    id: "anna",
++    name: "Анна",
++    role: "Колорист, стрижки",
++    active: true,
++    serviceIds: ["haircut", "coloring", "styling"],
++    weekdaysOff: [0],
++  },
++  {
++    id: "lena",
++    name: "Лена",
++    role: "Мастер ногтевого сервиса",
++    active: true,
++    serviceIds: ["manicure"],
++    weekdaysOff: [1],
++  },
++  {
++    id: "vera",
++    name: "Вера",
++    role: "Брови и ресницы",
++    active: true,
++    serviceIds: [],
++    weekdaysOff: [2],
++  },
+ ];
+ 
+-/** Шаг сетки слотов в минутах */
+-export const SLOT_STEP_MIN = 30;
++/** Русские названия дней для админки и подписей */
++export const weekdayNames: Record<number, string> = {
++  1: "Понедельник",
++  2: "Вторник",
++  3: "Среда",
++  4: "Четверг",
++  5: "Пятница",
++  6: "Суббота",
++  0: "Воскресенье",
++};
+ 
+-/** На сколько дней вперёд открыта запись */
+-export const BOOKING_HORIZON_DAYS = 21;
++/** Порядок вывода: неделя начинается с понедельника */
++export const weekdayOrder = [1, 2, 3, 4, 5, 6, 0];
+ 
+ /**
+- * MOCK: уже занятые интервалы.
+- * Ключ — дата YYYY-MM-DD, значение — [начало, длительность в минутах].
+- * Заменяется на SELECT из БД, сигнатура getBusyIntervals() не меняется.
++ * MOCK: демонстрационная занятость, чтобы сетка слотов не выглядела пустой.
++ * Ключ — смещение в днях от сегодня. Реальные брони приходят из репозитория
++ * и складываются с этими интервалами.
+  */
+ const MOCK_BUSY: Record<string, Array<[string, number]>> = {
+   "+0": [["11:00", 120], ["15:00", 180]],
+@@ -29,8 +75,7 @@ const MOCK_BUSY: Record<string, Array<[string, number]>> = {
+   "+3": [["12:00", 120], ["17:00", 60]],
+ };
+ 
+-/** Демо-генерация: раскладываем моки относительно сегодняшнего дня. */
+-export function getBusyIntervals(dateISO: string): Array<[string, number]> {
++export function getMockBusy(dateISO: string): Array<[string, number]> {
+   const today = new Date();
+   today.setHours(0, 0, 0, 0);
+   const target = new Date(`${dateISO}T00:00:00`);
+diff --git a/src/config/site.ts b/src/config/site.ts
+index 32e1cac..f126811 100644
+--- a/src/config/site.ts
++++ b/src/config/site.ts
+@@ -37,8 +37,7 @@ export const site = {
+   },
+   hours: [
+     { days: "Пн — Пт", time: "09:00 — 20:00" },
+-    { days: "Сб", time: "10:00 — 18:00" },
+-    { days: "Вс", time: "выходной" },
++    { days: "Сб — Вс", time: "10:00 — 18:00" },
+   ],
+   seo: {
+     title: "ATELIER — салон красоты в Праге | Запись онлайн",
+diff --git a/src/features/booking/AvailabilityProvider.tsx b/src/features/booking/AvailabilityProvider.tsx
+new file mode 100644
+index 0000000..3087925
+--- /dev/null
++++ b/src/features/booking/AvailabilityProvider.tsx
+@@ -0,0 +1,66 @@
++"use client";
++
++import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
++import type { AvailabilityResponse } from "@/types";
++
++interface Value {
++  data: AvailabilityResponse | null;
++  loading: boolean;
++  error: string | null;
++  /** перезагрузить под другого мастера */
++  load: (masterId: string | null) => void;
++  reload: () => void;
++}
++
++const Ctx = createContext<Value | null>(null);
++
++/**
++ * График живёт на сервере и меняется управляющей, поэтому клиент его
++ * загружает, а не берёт из бандла. Одним запросом получаем и рабочие часы,
++ * и занятость на весь горизонт — дальше сетка слотов считается локально,
++ * без похода на сервер при каждом тапе по дате.
++ */
++export function AvailabilityProvider({ children }: { children: React.ReactNode }) {
++  const [data, setData] = useState<AvailabilityResponse | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState<string | null>(null);
++  const currentMaster = useRef<string | null>(null);
++
++  const load = useCallback(async (masterId: string | null) => {
++    currentMaster.current = masterId;
++    setLoading(true);
++    setError(null);
++
++    try {
++      const qs = masterId ? `?masterId=${encodeURIComponent(masterId)}` : "";
++      const res = await fetch(`/api/availability${qs}`, { cache: "no-store" });
++      const json = await res.json();
++
++      // Пока шёл запрос, мог смениться мастер — старый ответ игнорируем
++      if (currentMaster.current !== masterId) return;
++
++      if (json.ok) setData(json.data);
++      else setError(json.error ?? "Расписание недоступно");
++    } catch {
++      if (currentMaster.current === masterId) setError("Нет связи с сервером");
++    } finally {
++      if (currentMaster.current === masterId) setLoading(false);
++    }
++  }, []);
++
++  useEffect(() => {
++    load(null);
++  }, [load]);
++
++  const reload = useCallback(() => load(currentMaster.current), [load]);
++
++  return (
++    <Ctx.Provider value={{ data, loading, error, load, reload }}>{children}</Ctx.Provider>
++  );
++}
++
++export function useAvailability() {
++  const ctx = useContext(Ctx);
++  if (!ctx) throw new Error("useAvailability должен вызываться внутри <AvailabilityProvider>");
++  return ctx;
++}
+diff --git a/src/features/booking/BookingFlow.tsx b/src/features/booking/BookingFlow.tsx
+index a461e12..f389448 100644
+--- a/src/features/booking/BookingFlow.tsx
++++ b/src/features/booking/BookingFlow.tsx
+@@ -8,7 +8,9 @@ import { StepService } from "./steps/StepService";
+ import { StepWhen } from "./steps/StepWhen";
+ import { StepContact } from "./steps/StepContact";
+ import { StepDone } from "./steps/StepDone";
+-import { isValidPhone } from "@/lib/format";
++import { formatDuration, formatPrice, isValidPhone } from "@/lib/format";
++import { exceedsWorkday, summarize } from "@/lib/selection";
++import { useAvailability } from "./AvailabilityProvider";
+ 
+ const titles: Record<BookingStep, string> = {
+   1: "Что делаем",
+@@ -23,10 +25,13 @@ const titles: Record<BookingStep, string> = {
+  */
+ export function BookingFlow({ className }: { className?: string }) {
+   const { step, goTo, draft, submit, status, error, reset } = useBooking();
++  const { data } = useAvailability();
++
++  const summary = summarize(draft.items);
+ 
+   const canContinue =
+     step === 1
+-      ? Boolean(draft.serviceId)
++      ? summary.items.length > 0 && !exceedsWorkday(data, summary.durationMin)
+       : step === 2
+         ? Boolean(draft.date && draft.time)
+         : draft.name.trim().length >= 2 && isValidPhone(draft.phone);
+@@ -74,7 +79,21 @@ export function BookingFlow({ className }: { className?: string }) {
+       </div>
+ 
+       {/* Панель действий закреплена внизу — на мобиле кнопка всегда под большим пальцем */}
+-      <div className="safe-b sticky bottom-0 shrink-0 border-t border-line bg-bg/90 px-5 pt-4 backdrop-blur">
++      <div className="safe-b sticky bottom-0 shrink-0 border-t border-line bg-bg/90 px-5 pt-3 backdrop-blur">
++        {/* Итог по корзине виден на всех шагах: человек всегда знает,
++            сколько времени и денег стоит его набор процедур */}
++        {step < 4 && summary.items.length > 0 && (
++          <p className="mb-3 flex items-baseline justify-between gap-3 text-sm">
++            <span className="truncate text-muted">
++              {summary.items.length}{" "}
++              {summary.items.length === 1 ? "процедура" : summary.items.length < 5 ? "процедуры" : "процедур"}{" "}
++              · {formatDuration(summary.durationMin)}
++            </span>
++            <span className="shrink-0 tabular-nums">
++              {formatPrice(summary.price, summary.currency)}
++            </span>
++          </p>
++        )}
+         {step === 4 ? (
+           <Button variant="secondary" fullWidth size="lg" onClick={reset}>
+             Записаться ещё раз
+diff --git a/src/features/booking/BookingProvider.tsx b/src/features/booking/BookingProvider.tsx
+index aaad6da..675c7d3 100644
+--- a/src/features/booking/BookingProvider.tsx
++++ b/src/features/booking/BookingProvider.tsx
+@@ -1,13 +1,15 @@
+ "use client";
+ 
+ import { createContext, useCallback, useContext, useMemo, useState } from "react";
+-import type { BookingDraft, BookingRecord } from "@/types";
++import type { BookingDraft, BookingItem, BookingRecord } from "@/types";
++import { toggleItem } from "@/lib/selection";
+ import { postBooking } from "./api";
+ 
+ export type BookingStep = 1 | 2 | 3 | 4;
+ 
+ const emptyDraft: BookingDraft = {
+-  serviceId: null,
++  items: [],
++  masterId: null,
+   date: null,
+   time: null,
+   name: "",
+@@ -19,6 +21,8 @@ const emptyDraft: BookingDraft = {
+ interface BookingContextValue {
+   draft: BookingDraft;
+   patch: (p: Partial<BookingDraft>) => void;
++  /** добавить / заменить вариант / снять — с автосбросом времени */
++  toggle: (item: BookingItem) => void;
+   step: BookingStep;
+   goTo: (s: BookingStep) => void;
+   isOpen: boolean;
+@@ -53,6 +57,16 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
+     setFieldErrors({});
+   }, []);
+ 
++  /**
++   * Любое изменение состава услуг обнуляет выбранное время:
++   * добавили процедуру — визит стал длиннее, и старый слот
++   * может уже не помещаться в расписание.
++   */
++  const toggle = useCallback((item: BookingItem) => {
++    setDraft((d) => ({ ...d, items: toggleItem(d.items, item), time: null }));
++    setFieldErrors({});
++  }, []);
++
+   const open = useCallback((s: BookingStep = 1) => {
+     setStep(s);
+     setIsOpen(true);
+@@ -85,18 +99,19 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
+       setError(res.error);
+       setFieldErrors(res.fields ?? {});
+       // возвращаем на шаг, где ошибка
+-       if (res.fields?.serviceId) setStep(1);
+-       else if (res.fields?.date || res.fields?.time) setStep(2);
+-       else setStep(3);
++      if (res.fields?.items) setStep(1);
++      else if (res.fields?.masterId) setStep(2);
++      else if (res.fields?.date || res.fields?.time) setStep(2);
++      else setStep(3);
+     }
+   }, [draft]);
+ 
+   const value = useMemo(
+     () => ({
+-      draft, patch, step, goTo: setStep, isOpen, open, close,
++      draft, patch, toggle, step, goTo: setStep, isOpen, open, close,
+       status, error, fieldErrors, result, submit, reset,
+     }),
+-    [draft, patch, step, isOpen, open, close, status, error, fieldErrors, result, submit, reset],
++    [draft, patch, toggle, step, isOpen, open, close, status, error, fieldErrors, result, submit, reset],
+   );
+ 
+   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+diff --git a/src/features/booking/steps/StepContact.tsx b/src/features/booking/steps/StepContact.tsx
+index b0ee053..3f69a20 100644
+--- a/src/features/booking/steps/StepContact.tsx
++++ b/src/features/booking/steps/StepContact.tsx
+@@ -1,24 +1,41 @@
+ "use client";
+ 
+-import { getService } from "@/config/catalog";
+ import { uploads } from "@/config/uploads";
+ import { TextAreaField, TextField } from "@/components/ui/Field";
+ import { PhotoPicker } from "@/components/ui/PhotoPicker";
+ import { formatDateLong, formatDuration, formatPrice, maskPhone } from "@/lib/format";
++import { summarize } from "@/lib/selection";
+ import { useBooking } from "../BookingProvider";
++import { useAvailability } from "../AvailabilityProvider";
+ 
+ export function StepContact() {
+   const { draft, patch, fieldErrors } = useBooking();
+-  const service = getService(draft.serviceId);
++  const { data } = useAvailability();
++  const summary = summarize(draft.items);
++  const master = data?.masters.find((m) => m.id === draft.masterId) ?? null;
+ 
+   return (
+     <div className="space-y-5">
+-      {service && draft.date && draft.time && (
++      {summary.items.length > 0 && draft.date && draft.time && (
+         <div className="rounded-control bg-surface px-4 py-4 text-sm">
+-          <p className="text-ink font-medium">{service.title}</p>
++          <ul className="space-y-1">
++            {summary.items.map(({ service, variant }) => (
++              <li key={service.id} className="flex justify-between gap-3">
++                <span className="min-w-0 truncate">
++                  {service.title} — <span className="text-muted">{variant.label}</span>
++                </span>
++                <span className="shrink-0 tabular-nums text-muted">
++                  {formatPrice(variant.price, service.currency)}
++                </span>
++              </li>
++            ))}
++          </ul>
++          <p className="mt-3 border-t border-line pt-3 text-muted">
++            {formatDateLong(draft.date)}, {draft.time} · {formatDuration(summary.durationMin)} ·{" "}
++            <span className="text-ink">{formatPrice(summary.price, summary.currency)}</span>
++          </p>
+           <p className="mt-1 text-muted">
+-            {formatDateLong(draft.date)}, {draft.time} · {formatDuration(service.durationMin)} ·{" "}
+-            {formatPrice(service.price, service.currency)}
++            Мастер: <span className="text-ink">{master ? master.name : "любой свободный"}</span>
+           </p>
+         </div>
+       )}
+@@ -38,6 +55,7 @@ export function StepContact() {
+         id="booking-phone"
+         label="Телефон"
+         placeholder="+420 777 123 456"
++        // inputMode + type=tel — на мобиле открывается цифровая клавиатура
+         type="tel"
+         inputMode="tel"
+         autoComplete="tel"
+@@ -59,7 +77,7 @@ export function StepContact() {
+       <PhotoPicker
+         label="Фото — по желанию"
+         hint={`Референс или ваш нынешний цвет. До ${uploads.maxFiles} фото, мастер посмотрит заранее`}
+-        value={draft.photos ?? []}
++        value={draft.photos}
+         error={fieldErrors.photos}
+         onChange={(photos) => patch({ photos })}
+       />
+diff --git a/src/features/booking/steps/StepDone.tsx b/src/features/booking/steps/StepDone.tsx
+index 4589dfd..561fad7 100644
+--- a/src/features/booking/steps/StepDone.tsx
++++ b/src/features/booking/steps/StepDone.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ 
+ import { site } from "@/config/site";
+-import { formatDateLong } from "@/lib/format";
++import { formatDateLong, formatDuration } from "@/lib/format";
+ import { useBooking } from "../BookingProvider";
+ 
+ const BOT_NAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME; // e.g., "my_salon_bot"
+@@ -26,11 +26,25 @@ export function StepDone() {
+       </div>
+ 
+       <h3 className="font-display text-2xl">Записали вас</h3>
++
+       <p className="mx-auto mt-3 max-w-sm leading-relaxed text-muted">
+-        {result.serviceTitle} — {formatDateLong(result.date)} в {result.time}. Мастер подтвердит
+-        запись по телефону в течение 15 минут.
++        {formatDateLong(result.date)} в {result.time}, всего{" "}
++        {formatDuration(result.totalDurationMin)}
++        {result.masterId ? `, мастер ${result.masterName}` : ""}. Подтвердим запись по телефону
++        в течение 15 минут.
+       </p>
+ 
++      <ul className="mx-auto mt-5 max-w-sm space-y-1.5 rounded-control bg-surface px-4 py-4 text-left text-sm">
++        {result.lines.map((l) => (
++          <li key={`${l.serviceId}-${l.variantId}`} className="flex justify-between gap-3">
++            <span className="min-w-0 truncate">
++              {l.serviceTitle} — <span className="text-muted">{l.variantLabel}</span>
++            </span>
++            <span className="shrink-0 tabular-nums text-muted">{formatDuration(l.durationMin)}</span>
++          </li>
++        ))}
++      </ul>
++
+       {/* Кнопка отправки записи в Telegram клиента */}
+       {BOT_NAME && (
+         <div className="mt-6">
+diff --git a/src/features/booking/steps/StepService.tsx b/src/features/booking/steps/StepService.tsx
+index bf177e2..47ce934 100644
+--- a/src/features/booking/steps/StepService.tsx
++++ b/src/features/booking/steps/StepService.tsx
+@@ -1,38 +1,168 @@
+ "use client";
+ 
+-import { services } from "@/config/catalog";
++import { useState } from "react";
++import { AnimatePresence, motion } from "framer-motion";
++import { minPrice, services } from "@/config/catalog";
+ import { cn } from "@/lib/cn";
+ import { formatDuration, formatPrice } from "@/lib/format";
++import { MAX_ITEMS, exceedsWorkday, isSelected, summarize } from "@/lib/selection";
+ import { useBooking } from "../BookingProvider";
++import { useAvailability } from "../AvailabilityProvider";
+ 
++/**
++ * Шаг 1: выбор процедур.
++ *
++ * Услуга раскрывается в варианты по длительности — так человек сам говорит,
++ * час ему нужен или три, и расписание не съезжает.
++ * Выбрать можно несколько услуг: маникюр после стрижки — обычный сценарий,
++ * и заставлять оформлять две отдельные записи бессмысленно.
++ */
+ export function StepService() {
+-  const { draft, patch, goTo } = useBooking();
++  const { draft, toggle, fieldErrors } = useBooking();
++  const { data } = useAvailability();
++  const [openId, setOpenId] = useState<string | null>(null);
++
++  const summary = summarize(draft.items);
++  const full = draft.items.length >= MAX_ITEMS;
++  const tooLong = exceedsWorkday(data, summary.durationMin);
+ 
+   return (
+-    <div className="space-y-2 h-[calc(100vh-200px)] overflow-y-auto">
+-      {services.map((s) => {
+-        const active = draft.serviceId === s.id;
++    <div className="space-y-2">
++      {services.map((service) => {
++        const picked = draft.items.find((i) => i.serviceId === service.id);
++        const pickedVariant = picked
++          ? service.variants.find((v) => v.id === picked.variantId)
++          : null;
++        const expanded = openId === service.id;
++        const locked = full && !picked;
++
+         return (
+-          <button
+-            key={s.id}
+-            onClick={() => {
+-              patch({ serviceId: s.id, time: null });
+-              goTo(2);
+-            }}
++          <div
++            key={service.id}
+             className={cn(
+-              "flex w-full items-center justify-between gap-4 rounded-control border px-4 py-4 text-left",
+-              "transition-colors duration-200 ease-soft",
+-              active ? "border-ink bg-surface" : "border-line bg-elevated hover:border-ink/30",
++              "overflow-hidden rounded-control border transition-colors duration-200 ease-soft",
++              picked ? "border-ink bg-surface" : "border-line bg-elevated",
++              locked && "opacity-45",
+             )}
+           >
+-            <span className="min-w-0">
+-              <span className="block truncate text-[15px]">{s.title}</span>
+-              <span className="mt-0.5 block text-sm text-muted">{formatDuration(s.durationMin)}</span>
+-            </span>
+-            <span className="shrink-0 text-[15px] tabular-nums">{formatPrice(s.price, s.currency)}</span>
+-          </button>
++            <button
++              onClick={() => setOpenId(expanded ? null : service.id)}
++              disabled={locked}
++              aria-expanded={expanded}
++              className="flex w-full items-center gap-3 px-4 py-4 text-left"
++            >
++              {/* Галочка слева — привычный признак множественного выбора */}
++              <span
++                className={cn(
++                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-[7px] border",
++                  picked ? "border-ink bg-accent text-accent-ink" : "border-line",
++                )}
++                aria-hidden
++              >
++                {picked && (
++                  <svg viewBox="0 0 20 20" className="h-3 w-3">
++                    <path
++                      d="M4 10.5l4 4 8-9"
++                      fill="none"
++                      stroke="currentColor"
++                      strokeWidth="2.2"
++                      strokeLinecap="round"
++                      strokeLinejoin="round"
++                    />
++                  </svg>
++                )}
++              </span>
++
++              <span className="min-w-0 flex-1">
++                <span className="block truncate text-[15px]">{service.title}</span>
++                <span className="mt-0.5 block truncate text-sm text-muted">
++                  {pickedVariant
++                    ? `${pickedVariant.label} · ${formatDuration(pickedVariant.durationMin)}`
++                    : `${service.variants.length} варианта · от ${formatPrice(minPrice(service), service.currency)}`}
++                </span>
++              </span>
++
++              <span
++                className="shrink-0 text-muted transition-transform duration-300 ease-soft"
++                style={{ transform: expanded ? "rotate(180deg)" : "none" }}
++                aria-hidden
++              >
++                <svg viewBox="0 0 20 20" className="h-4 w-4">
++                  <path
++                    d="M5 8l5 5 5-5"
++                    fill="none"
++                    stroke="currentColor"
++                    strokeWidth="1.6"
++                    strokeLinecap="round"
++                    strokeLinejoin="round"
++                  />
++                </svg>
++              </span>
++            </button>
++
++            <AnimatePresence initial={false}>
++              {expanded && (
++                <motion.div
++                  initial={{ height: 0, opacity: 0 }}
++                  animate={{ height: "auto", opacity: 1 }}
++                  exit={{ height: 0, opacity: 0 }}
++                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
++                  className="overflow-hidden"
++                >
++                  <div className="space-y-1.5 px-3 pb-3">
++                    {service.variants.map((variant) => {
++                      const active = isSelected(draft.items, service.id, variant.id);
++                      return (
++                        <button
++                          key={variant.id}
++                          onClick={() => toggle({ serviceId: service.id, variantId: variant.id })}
++                          className={cn(
++                            "flex min-h-12 w-full items-center justify-between gap-3 rounded-control border px-3.5 py-2.5 text-left",
++                            "transition-colors duration-200 ease-soft",
++                            active
++                              ? "border-ink bg-accent text-accent-ink"
++                              : "border-line bg-bg active:bg-surface",
++                          )}
++                        >
++                          <span className="min-w-0">
++                            <span className="block truncate text-sm">{variant.label}</span>
++                            <span
++                              className={cn(
++                                "text-xs",
++                                active ? "opacity-75" : "text-muted",
++                              )}
++                            >
++                              {formatDuration(variant.durationMin)}
++                            </span>
++                          </span>
++                          <span className="shrink-0 text-sm tabular-nums">
++                            {formatPrice(variant.price, service.currency)}
++                          </span>
++                        </button>
++                      );
++                    })}
++                  </div>
++                </motion.div>
++              )}
++            </AnimatePresence>
++          </div>
+         );
+       })}
++
++      {full && (
++        <p className="pt-1 text-sm text-muted">
++          Больше {MAX_ITEMS} процедур за визит не берём — иначе визит растянется на весь день.
++        </p>
++      )}
++
++      {tooLong && (
++        <p className="rounded-control bg-surface px-4 py-3 text-sm text-muted">
++          Всё вместе — {formatDuration(summary.durationMin)}. В один визит столько не помещается,
++          уберите что-нибудь или запишитесь на два дня.
++        </p>
++      )}
++
++      {fieldErrors.items && <p className="pt-1 text-sm text-red-500">{fieldErrors.items}</p>}
+     </div>
+   );
+ }
+diff --git a/src/features/booking/steps/StepWhen.tsx b/src/features/booking/steps/StepWhen.tsx
+index 81882df..3563b94 100644
+--- a/src/features/booking/steps/StepWhen.tsx
++++ b/src/features/booking/steps/StepWhen.tsx
+@@ -1,21 +1,31 @@
+ "use client";
+ 
+ import { useMemo, useState } from "react";
+-import { BOOKING_HORIZON_DAYS } from "@/config/schedule";
+-import { getService } from "@/config/catalog";
+ import { cn } from "@/lib/cn";
+ import { formatDuration, splitDate } from "@/lib/format";
+ import { buildDays, buildSlots } from "@/lib/slots";
++import { exceedsWorkday, mastersForItems, summarize } from "@/lib/selection";
+ import { useBooking } from "../BookingProvider";
++import { useAvailability } from "../AvailabilityProvider";
+ 
+ export function StepWhen() {
+   const { draft, patch, fieldErrors } = useBooking();
+-  const service = getService(draft.serviceId);
++  const { data, loading, error, load } = useAvailability();
+ 
+-  // All days the backend considers bookable (not closed + inside horizon)
++  // Итог по всем выбранным процедурам: длительность визита — это их сумма.
++  const summary = useMemo(() => summarize(draft.items), [draft.items]);
++
++  // Мастера, которые делают ВСЕ выбранные процедуры.
++  // Показывать остальных бессмысленно: человек выберет и упрётся в отказ.
++  const eligible = useMemo(
++    () => (data ? mastersForItems(data.masters, draft.items) : []),
++    [data, draft.items],
++  );
++
++  // Дни, доступные для записи у выбранного мастера
+   const bookableDays = useMemo(
+-    () => buildDays(BOOKING_HORIZON_DAYS).filter((d) => !d.closed),
+-    [],
++    () => (data ? buildDays(data).filter((d) => !d.closed) : []),
++    [data],
+   );
+ 
+   const bookableSet = useMemo(
+@@ -33,24 +43,106 @@ export function StepWhen() {
+   const [monthIndex, setMonthIndex] = useState(0);
+   const currentYm = months[monthIndex] ?? months[0]; // "YYYY-MM"
+ 
++  // Слоты считаются от СУММАРНОЙ длительности:
++  // стрижка 90 мин + маникюр 120 мин = мастеру нужно свободное окно в 3.5 часа.
+   const slots = useMemo(
+-    () => (draft.date && service ? buildSlots(draft.date, service.durationMin) : []),
+-    [draft.date, service],
++    () =>
++      data && draft.date && summary.durationMin
++        ? buildSlots(data, draft.date, summary.durationMin)
++        : [],
++    [data, draft.date, summary.durationMin],
+   );
+ 
+-  if (!service) {
+-    return <p className="text-muted">Сначала выберите услугу.</p>;
++  /** Смена мастера перезагружает расписание и сбрасывает время */
++  const pickMaster = (masterId: string | null) => {
++    patch({ masterId, time: null });
++    load(masterId);
++  };
++
++  if (summary.items.length === 0) {
++    return <p className="text-muted">Сначала выберите хотя бы одну процедуру.</p>;
++  }
++
++  if (!data) {
++    return (
++      <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
++        {error ? `${error}. Обновите страницу или позвоните нам.` : "Загружаем расписание…"}
++      </p>
++    );
++  }
++
++  // Набор из нескольких процедур может не влезть в смену.
++  // Без этой проверки человек увидел бы пустую сетку и решил, что всё занято.
++  if (exceedsWorkday(data, summary.durationMin)) {
++    return (
++      <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
++        Выбрано на {formatDuration(summary.durationMin)} — это дольше рабочего дня.
++        Вернитесь на шаг назад и уберите одну процедуру.
++      </p>
++    );
+   }
+ 
+   const free = slots.filter((s) => s.available);
+ 
+   return (
+     <div className="space-y-8">
++      {/* ===== MASTER ===== */}
++      {eligible.length > 0 && (
++        <div>
++          <p className="mb-3 text-sm text-muted">Мастер</p>
++
++          <div className="rail">
++            <button
++              type="button"
++              onClick={() => pickMaster(null)}
++              className={cn(
++                "min-h-11 rounded-control border px-4 text-[15px] transition-colors duration-200 ease-soft",
++                draft.masterId === null
++                  ? "border-ink bg-accent text-accent-ink"
++                  : "border-line bg-elevated",
++              )}
++            >
++              Любой
++            </button>
++
++            {eligible.map((m) => (
++              <button
++                key={m.id}
++                type="button"
++                onClick={() => pickMaster(m.id)}
++                className={cn(
++                  "min-h-11 rounded-control border px-4 text-left text-[15px]",
++                  "transition-colors duration-200 ease-soft",
++                  draft.masterId === m.id
++                    ? "border-ink bg-accent text-accent-ink"
++                    : "border-line bg-elevated",
++                )}
++              >
++                {m.name}
++              </button>
++            ))}
++          </div>
++
++          <p className="mt-2 text-xs text-muted">
++            {draft.masterId
++              ? "Показываем только его свободные часы"
++              : "Свободное время любого подходящего мастера"}
++          </p>
++        </div>
++      )}
++
+       {/* ===== DATE ===== */}
+       <div>
+         <p className="mb-3 text-sm text-muted">Дата</p>
+ 
+-        <div className="rounded-2xl border border-line bg-elevated overflow-hidden">
++        <div
++          className={cn(
++            "rounded-2xl border border-line bg-elevated overflow-hidden",
++            // при смене мастера сетка перестраивается — гасим её, чтобы
++            // не тапнули по дате, которая через миг станет недоступной
++            loading && "pointer-events-none opacity-50",
++          )}
++        >
+           {/* Month header */}
+           <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-surface/60">
+             <button
+@@ -154,9 +246,9 @@ export function StepWhen() {
+       {/* ===== TIME ===== */}
+       <div>
+         <div className="mb-3 flex items-baseline justify-between gap-3">
+-          <p className="text-sm text-muted">Время</p>
++          <p className="text-sm text-muted">Время начала</p>
+           <p className="text-xs text-muted">
+-            Процедура — {formatDuration(service.durationMin)}
++            Визит займёт {formatDuration(summary.durationMin)}
+           </p>
+         </div>
+ 
+@@ -166,8 +258,8 @@ export function StepWhen() {
+           </p>
+         ) : free.length === 0 ? (
+           <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
+-            На этот день всё занято. Посмотрите соседние даты или позвоните нам —
+-            иногда освобождаются окна.
++            На этот день нет свободного окна в {formatDuration(summary.durationMin)}{" "}
++            подряд. Посмотрите соседние даты или уберите одну процедуру.
+           </p>
+         ) : (
+           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+diff --git a/src/lib/admin-auth.ts b/src/lib/admin-auth.ts
+new file mode 100644
+index 0000000..2b4c3ba
+--- /dev/null
++++ b/src/lib/admin-auth.ts
+@@ -0,0 +1,53 @@
++import { createHmac, timingSafeEqual } from "crypto";
++
++const PASSWORD = process.env.ADMIN_PASSWORD ?? "";
++const SECRET = process.env.ADMIN_SECRET ?? PASSWORD;
++const COOKIE = "salon_admin";
++const TTL_HOURS = 12;
++
++export const adminCookieName = COOKIE;
++export const isAdminConfigured = Boolean(PASSWORD);
++
++function sign(payload: string) {
++  return createHmac("sha256", SECRET).update(payload).digest("hex");
++}
++
++/** Сравнение без утечки времени — иначе пароль подбирается по задержке ответа */
++function safeEqual(a: string, b: string) {
++  const bufA = Buffer.from(a);
++  const bufB = Buffer.from(b);
++  if (bufA.length !== bufB.length) return false;
++  return timingSafeEqual(bufA, bufB);
++}
++
++export function checkPassword(input: string) {
++  if (!PASSWORD) return false;
++  return safeEqual(input, PASSWORD);
++}
++
++/**
++ * Токен = срок действия + подпись. Состояние сессии на сервере не храним:
++ * инстансов может быть несколько, общей памяти у них нет.
++ */
++export function issueToken() {
++  const expires = Date.now() + TTL_HOURS * 3600_000;
++  return `${expires}.${sign(String(expires))}`;
++}
++
++export function verifyToken(token: string | undefined) {
++  if (!token || !SECRET) return false;
++
++  const [expires, signature] = token.split(".");
++  if (!expires || !signature) return false;
++  if (Number(expires) < Date.now()) return false;
++
++  return safeEqual(signature, sign(expires));
++}
++
++export const cookieOptions = {
++  httpOnly: true,
++  sameSite: "lax" as const,
++  secure: process.env.NODE_ENV === "production",
++  path: "/",
++  maxAge: TTL_HOURS * 3600,
++};
+diff --git a/src/lib/mongodb.ts b/src/lib/mongodb.ts
+new file mode 100644
+index 0000000..27c63f1
+--- /dev/null
++++ b/src/lib/mongodb.ts
+@@ -0,0 +1,64 @@
++import { MongoClient, type Db } from "mongodb";
++
++const URI = process.env.MONGODB_URI ?? "";
++const DB_NAME = process.env.MONGODB_DB ?? "nails_studio";
++
++/**
++ * Одно подключение на процесс.
++ *
++ * В dev-режиме Next пересобирает модули при каждом сохранении файла, и без
++ * кэша в globalThis каждый hot-reload открывал бы новый пул соединений —
++ * через десяток правок Atlas упрётся в лимит и начнёт отбивать запросы.
++ * В проде та же переменная переживает переиспользование warm-инстанса.
++ */
++const globalForMongo = globalThis as unknown as {
++  _mongoClientPromise?: Promise<MongoClient>;
++};
++
++export const isMongoEnabled = Boolean(URI);
++
++function clientPromise(): Promise<MongoClient> {
++  if (!URI) throw new Error("MONGODB_URI не задан");
++
++  if (!globalForMongo._mongoClientPromise) {
++    const client = new MongoClient(URI, {
++      // Быстро падаем вместо десятисекундного зависания формы у клиента
++      serverSelectionTimeoutMS: 5000,
++      maxPoolSize: 10,
++    });
++    globalForMongo._mongoClientPromise = client.connect();
++  }
++  return globalForMongo._mongoClientPromise;
++}
++
++export async function getDb(): Promise<Db> {
++  const client = await clientPromise();
++  return client.db(DB_NAME);
++}
++
++/** Коллекции в одном месте — чтобы не искать строковые литералы по проекту */
++export const collections = {
++  bookings: "bookings",
++  settings: "settings",
++} as const;
++
++let indexesReady: Promise<void> | null = null;
++
++/**
++ * Индексы создаются один раз за жизнь процесса.
++ * По дате мы ходим на каждый расчёт доступности — без индекса это full scan
++ * коллекции, которая растёт линейно с числом записей.
++ */
++export async function ensureIndexes() {
++  if (!indexesReady) {
++    indexesReady = (async () => {
++      const db = await getDb();
++      await db.collection(collections.bookings).createIndexes([
++        { key: { date: 1, masterId: 1 }, name: "date_master" },
++        { key: { id: 1 }, name: "public_id", unique: true },
++        { key: { createdAt: -1 }, name: "recent" },
++      ]);
++    })();
++  }
++  return indexesReady;
++}
+diff --git a/src/lib/selection.ts b/src/lib/selection.ts
+new file mode 100644
+index 0000000..7761f40
+--- /dev/null
++++ b/src/lib/selection.ts
+@@ -0,0 +1,91 @@
++import { getService, getVariant } from "@/config/catalog";
++import { longestWorkday } from "@/lib/slots";
++import type {
++  BookingItem,
++  BookingLine,
++  ResolvedItem,
++  ScheduleContext,
++  SelectionSummary,
++} from "@/types";
++
++/** Сколько позиций можно взять в один визит */
++export const MAX_ITEMS = 4;
++
++/**
++ * Разворачивает выбор в полные объекты и считает итог.
++ * Используется и на клиенте (показать сумму), и на сервере (проверить её заново) —
++ * поэтому живёт в lib, а не в компоненте.
++ */
++export function summarize(items: BookingItem[]): SelectionSummary {
++  const resolved: ResolvedItem[] = [];
++
++  for (const item of items) {
++    const service = getService(item.serviceId);
++    const variant = getVariant(item.serviceId, item.variantId);
++    if (service && variant) resolved.push({ service, variant });
++  }
++
++  return {
++    items: resolved,
++    durationMin: resolved.reduce((sum, r) => sum + r.variant.durationMin, 0),
++    price: resolved.reduce((sum, r) => sum + r.variant.price, 0),
++    currency: resolved[0]?.service.currency ?? "Kč",
++  };
++}
++
++/** Плоский вид для отправки на сервер и в чат */
++export function toLines(items: BookingItem[]): BookingLine[] {
++  return summarize(items).items.map(({ service, variant }) => ({
++    serviceId: service.id,
++    variantId: variant.id,
++    serviceTitle: service.title,
++    variantLabel: variant.label,
++    durationMin: variant.durationMin,
++    price: variant.price,
++  }));
++}
++
++/**
++ * Набор из четырёх процедур легко перевалит за рабочий день.
++ * Тогда buildSlots честно вернёт пустой список, и человек увидит
++ * «нет времени» вместо понятного «всё вместе не помещается в один визит».
++ * Поэтому проверяем это отдельно и говорим прямо.
++ */
++export function exceedsWorkday(ctx: ScheduleContext | null, durationMin: number) {
++  if (!ctx) return false;
++  return durationMin > longestWorkday(ctx);
++}
++
++/** Мастера, которые делают все выбранные процедуры */
++export function mastersForItems<T extends { serviceIds: string[]; active: boolean }>(
++  masters: T[],
++  items: BookingItem[],
++) {
++  return masters.filter(
++    (m) =>
++      m.active &&
++      items.every((i) => m.serviceIds.length === 0 || m.serviceIds.includes(i.serviceId)),
++  );
++}
++
++/** Добавить, заменить вариант или убрать позицию — одной операцией */
++export function toggleItem(items: BookingItem[], next: BookingItem): BookingItem[] {
++  const existing = items.find((i) => i.serviceId === next.serviceId);
++
++  if (!existing) {
++    if (items.length >= MAX_ITEMS) return items;
++    return [...items, next];
++  }
++  // повторный тап по тому же варианту — снять выбор
++  if (existing.variantId === next.variantId) {
++    return items.filter((i) => i.serviceId !== next.serviceId);
++  }
++  // другой вариант той же услуги — заменить, а не добавить второй
++  return items.map((i) => (i.serviceId === next.serviceId ? next : i));
++}
++
++export function isSelected(items: BookingItem[], serviceId: string, variantId?: string) {
++  return items.some(
++    (i) => i.serviceId === serviceId && (variantId === undefined || i.variantId === variantId),
++  );
++}
+diff --git a/src/lib/slots.ts b/src/lib/slots.ts
+index 14f01b9..daa6acb 100644
+--- a/src/lib/slots.ts
++++ b/src/lib/slots.ts
+@@ -1,5 +1,4 @@
+-import { SLOT_STEP_MIN, getBusyIntervals, workingHours } from "@/config/schedule";
+-import type { SlotState } from "@/types";
++import type { ScheduleContext, SlotState } from "@/types";
+ 
+ export function toMinutes(time: string) {
+   const [h, m] = time.split(":").map(Number);
+@@ -16,22 +15,38 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number) {
+   return aStart < bEnd && bStart < aEnd;
+ }
+ 
++export function toISO(d: Date) {
++  const tz = d.getTimezoneOffset() * 60000;
++  return new Date(d.getTime() - tz).toISOString().slice(0, 10);
++}
++
+ /**
+  * Главная логика записи.
++ *
++ * Функция стала чистой: график и занятость приходят аргументом, а не из
++ * импорта конфига. Иначе админка была бы бессмысленной — клиент продолжал бы
++ * считать слоты по значениям, вшитым в бандл на момент сборки.
++ *
+  * Слот доступен, если процедура целиком помещается в рабочий день
+  * и не пересекается ни с одной занятой бронью.
+- *
+- * Пример: услуга 180 мин, старт 09:00 → занимает 09:00–12:00,
+- * значит слоты 09:30, 10:00, 10:30, 11:00, 11:30 тоже становятся недоступны.
++ * Услуга 180 мин, старт 09:00 → занимает 09:00–12:00,
++ * значит слоты 09:30…11:30 тоже гаснут.
+  */
+-export function buildSlots(dateISO: string, durationMin: number): SlotState[] {
++export function buildSlots(
++  ctx: ScheduleContext,
++  dateISO: string,
++  durationMin: number,
++): SlotState[] {
++  const { settings, busy } = ctx;
++  if (settings.closedDates.includes(dateISO)) return [];
++
+   const date = new Date(`${dateISO}T00:00:00`);
+-  const day = workingHours.find((d) => d.weekday === date.getDay());
++  const day = settings.workingHours.find((d) => d.weekday === date.getDay());
+   if (!day?.open || !day.close) return [];
+ 
+   const openMin = toMinutes(day.open);
+   const closeMin = toMinutes(day.close);
+-  const busy = getBusyIntervals(dateISO).map(
++  const intervals = (busy[dateISO] ?? []).map(
+     ([start, dur]) => [toMinutes(start), toMinutes(start) + dur] as const,
+   );
+ 
+@@ -40,14 +55,16 @@ export function buildSlots(dateISO: string, durationMin: number): SlotState[] {
+   const isToday = date.toDateString() === now.toDateString();
+   const nowMin = now.getHours() * 60 + now.getMinutes();
+ 
++  const step = settings.slotStepMin || 30;
+   const slots: SlotState[] = [];
+-  for (let start = openMin; start + durationMin <= closeMin; start += SLOT_STEP_MIN) {
++
++  for (let start = openMin; start + durationMin <= closeMin; start += step) {
+     const end = start + durationMin;
+     let state: SlotState = { time: toTime(start), available: true };
+ 
+     if (isToday && start <= nowMin + 30) {
+       state = { ...state, available: false, reason: "past" };
+-    } else if (busy.some(([bs, be]) => overlaps(start, end, bs, be))) {
++    } else if (intervals.some(([bs, be]) => overlaps(start, end, bs, be))) {
+       state = { ...state, available: false, reason: "booked" };
+     }
+     slots.push(state);
+@@ -55,19 +72,27 @@ export function buildSlots(dateISO: string, durationMin: number): SlotState[] {
+   return slots;
+ }
+ 
+-/** Даты на горизонте записи + признак «салон работает» */
+-export function buildDays(horizonDays: number) {
++/** Даты на горизонте записи + признак «в этот день записаться нельзя» */
++export function buildDays(ctx: ScheduleContext) {
++  const { settings } = ctx;
+   const out: Array<{ iso: string; closed: boolean }> = [];
+   const cursor = new Date();
+   cursor.setHours(0, 0, 0, 0);
+ 
+-  for (let i = 0; i < horizonDays; i++) {
++  for (let i = 0; i < settings.horizonDays; i++) {
+     const d = new Date(cursor);
+     d.setDate(cursor.getDate() + i);
+-    const tz = d.getTimezoneOffset() * 60000;
+-    const iso = new Date(d.getTime() - tz).toISOString().slice(0, 10);
+-    const day = workingHours.find((w) => w.weekday === d.getDay());
+-    out.push({ iso, closed: !day?.open });
++    const iso = toISO(d);
++    const day = settings.workingHours.find((w) => w.weekday === d.getDay());
++    out.push({ iso, closed: !day?.open || settings.closedDates.includes(iso) });
+   }
+   return out;
+ }
++
++/** Самая длинная смена недели — предел для одного визита */
++export function longestWorkday(ctx: ScheduleContext) {
++  const spans = ctx.settings.workingHours
++    .filter((d) => d.open && d.close)
++    .map((d) => toMinutes(d.close!) - toMinutes(d.open!));
++  return spans.length ? Math.max(...spans) : 0;
++}
+diff --git a/src/services/availability.ts b/src/services/availability.ts
+new file mode 100644
+index 0000000..990b091
+--- /dev/null
++++ b/src/services/availability.ts
+@@ -0,0 +1,122 @@
++import { getMockBusy } from "@/config/schedule";
++import { toMinutes, toTime } from "@/lib/slots";
++import { bookingRepository } from "@/services/booking-repository";
++import { settingsRepository } from "@/services/settings-repository";
++import type { Master, SalonSettings, ScheduleContext, TimeSlot } from "@/types";
++
++type Interval = [TimeSlot, number];
++
++/**
++ * Убирает из недели личные выходные мастера.
++ * Для «любого мастера» день закрыт, только если выходной у всех сразу —
++ * иначе салон терял бы дни, когда работает половина команды.
++ */
++function scheduleFor(settings: SalonSettings, masters: Master[], master: Master | null) {
++  const offDays = master
++    ? new Set(master.weekdaysOff)
++    : new Set(
++        masters.length
++          ? [0, 1, 2, 3, 4, 5, 6].filter((wd) => masters.every((m) => m.weekdaysOff.includes(wd)))
++          : [],
++      );
++
++  return {
++    ...settings,
++    workingHours: settings.workingHours.map((d) =>
++      offDays.has(d.weekday) ? { ...d, open: null, close: null } : d,
++    ),
++  };
++}
++
++/** Слияние интервалов в минутную сетку и обратно */
++function toMask(intervals: Interval[]) {
++  const mask = new Uint8Array(24 * 60);
++  for (const [start, dur] of intervals) {
++    const from = toMinutes(start);
++    for (let i = from; i < Math.min(from + dur, mask.length); i++) mask[i] = 1;
++  }
++  return mask;
++}
++
++function fromMask(mask: Uint8Array): Interval[] {
++  const out: Interval[] = [];
++  let start = -1;
++  for (let i = 0; i <= mask.length; i++) {
++    if (mask[i] === 1 && start === -1) start = i;
++    if (mask[i] !== 1 && start !== -1) {
++      out.push([toTime(start), i - start]);
++      start = -1;
++    }
++  }
++  return out;
++}
++
++/**
++ * Занятость для выбранного мастера.
++ * Если мастер не выбран, время блокируется только тогда, когда заняты ВСЕ —
++ * пересечение масок. Иначе одна бронь у одного мастера гасила бы слот у всего салона.
++ */
++function busyForDate(
++  dateISO: string,
++  byMaster: Map<string, Interval[]>,
++  masters: Master[],
++  master: Master | null,
++): Interval[] {
++  if (master) return byMaster.get(master.id) ?? [];
++  if (masters.length === 0) return [];
++
++  const masks = masters.map((m) => toMask(byMaster.get(m.id) ?? []));
++  const result = new Uint8Array(24 * 60);
++  for (let i = 0; i < result.length; i++) {
++    result[i] = masks.every((mask) => mask[i] === 1) ? 1 : 0;
++  }
++  return fromMask(result);
++}
++
++/**
++ * Готовит всё, что нужно клиенту для расчёта слотов:
++ * график с учётом мастера и уже разрешённую занятость по датам.
++ */
++export async function getAvailability(masterId: string | null): Promise<
++  ScheduleContext & { masters: Master[]; masterId: string | null }
++> {
++  const { settings, masters } = await settingsRepository.read();
++  const active = masters.filter((m) => m.active);
++  const master = masterId ? (active.find((m) => m.id === masterId) ?? null) : null;
++
++  const bookings = await bookingRepository.listAll();
++
++  const busy: Record<string, Interval[]> = {};
++  const today = new Date();
++  today.setHours(0, 0, 0, 0);
++
++  for (let i = 0; i < settings.horizonDays; i++) {
++    const d = new Date(today);
++    d.setDate(today.getDate() + i);
++    const tz = d.getTimezoneOffset() * 60000;
++    const iso = new Date(d.getTime() - tz).toISOString().slice(0, 10);
++
++    // Демо-занятость общая для всех мастеров, реальные брони — адресные.
++    const byMaster = new Map<string, Interval[]>();
++    const mock = getMockBusy(iso);
++    for (const m of active) byMaster.set(m.id, [...mock]);
++
++    for (const b of bookings) {
++      if (b.date !== iso || b.status === "cancelled") continue;
++      const targets = b.masterId ? [b.masterId] : active.map((m) => m.id);
++      for (const id of targets) {
++        byMaster.set(id, [...(byMaster.get(id) ?? []), [b.time, b.totalDurationMin]]);
++      }
++    }
++
++    const resolved = busyForDate(iso, byMaster, active, master);
++    if (resolved.length) busy[iso] = resolved;
++  }
++
++  return {
++    settings: scheduleFor(settings, active, master),
++    busy,
++    masters: active,
++    masterId: master?.id ?? null,
++  };
++}
+diff --git a/src/services/booking-repository.ts b/src/services/booking-repository.ts
+index c42c502..7012eaa 100644
+--- a/src/services/booking-repository.ts
++++ b/src/services/booking-repository.ts
+@@ -1,17 +1,112 @@
++import { collections, ensureIndexes, getDb, isMongoEnabled } from "@/lib/mongodb";
+ import type { BookingPayload, BookingRecord } from "@/types";
+ 
++/**
++ * Контракт хранилища записей.
++ * Реализаций две: MongoDB (когда задан MONGODB_URI) и память процесса —
++ * чтобы демо можно было показать клиенту без поднятой базы.
++ */
+ export interface BookingRepository {
+   create(payload: BookingPayload): Promise<BookingRecord>;
+   listByDate(dateISO: string): Promise<BookingRecord[]>;
++  listAll(limit?: number): Promise<BookingRecord[]>;
++  setStatus(id: string, status: BookingRecord["status"]): Promise<BookingRecord | null>;
+   getById(id: string): Promise<BookingRecord | null>;
+-  cancel(id: string): Promise<BookingRecord | null>; // <-- Added
+-  reschedule(id: string, newDate: string, newTime: string): Promise<BookingRecord | null>; // <-- Added
++  cancel(id: string): Promise<BookingRecord | null>;
++  reschedule(id: string, newDate: string, newTime: string): Promise<BookingRecord | null>;
+ }
+ 
+-const globalForBooking = globalThis as unknown as {
+-  bookingMemory: BookingRecord[];
++function newRecord(payload: BookingPayload): BookingRecord {
++  return {
++    ...payload,
++    id: `BK-${Date.now().toString(36).toUpperCase()}`,
++    createdAt: new Date().toISOString(),
++    status: "new",
++  };
++}
++
++/* ------------------------------- MongoDB -------------------------------- */
++
++const mongoRepository: BookingRepository = {
++  async create(payload) {
++    await ensureIndexes();
++    const db = await getDb();
++    const record = newRecord(payload);
++
++    // Фото не кладём в документ: 3 картинки по 400 КБ в base64 упрутся
++    // в лимит документа 16 МБ и раздуют выдачу списка записей в админке.
++    // Они уже ушли в Telegram; для продакшена — S3 и ссылка здесь.
++    const { photos, ...rest } = record;
++    await db.collection(collections.bookings).insertOne({
++      ...rest,
++      photoCount: photos.length,
++    });
++
++    return record;
++  },
++
++  async listByDate(dateISO) {
++    const db = await getDb();
++    return db
++      .collection<BookingRecord>(collections.bookings)
++      .find({ date: dateISO }, { projection: { _id: 0 } })
++      .sort({ time: 1 })
++      .toArray();
++  },
++
++  async listAll(limit = 500) {
++    const db = await getDb();
++    return db
++      .collection<BookingRecord>(collections.bookings)
++      .find({}, { projection: { _id: 0 } })
++      .sort({ date: 1, time: 1 })
++      .limit(limit)
++      .toArray();
++  },
++
++  async setStatus(id, status) {
++    const db = await getDb();
++    const res = await db
++      .collection<BookingRecord>(collections.bookings)
++      .findOneAndUpdate(
++        { id },
++        { $set: { status } },
++        { returnDocument: "after", projection: { _id: 0 } },
++      );
++    return res ?? null;
++  },
++
++  async getById(id) {
++    const db = await getDb();
++    return db
++      .collection<BookingRecord>(collections.bookings)
++      .findOne({ id }, { projection: { _id: 0 } });
++  },
++
++  async cancel(id) {
++    return mongoRepository.setStatus(id, "cancelled");
++  },
++
++  async reschedule(id, newDate, newTime) {
++    const db = await getDb();
++    const res = await db
++      .collection<BookingRecord>(collections.bookings)
++      .findOneAndUpdate(
++        { id },
++        { $set: { date: newDate, time: newTime, status: "new" } },
++        { returnDocument: "after", projection: { _id: 0 } },
++      );
++    return res ?? null;
++  },
+ };
+ 
++/* -------------------------------- Память -------------------------------- */
++
++/**
++ * Next пересобирает модули на каждое сохранение файла, и обычный массив
++ * обнулялся бы при каждом hot-reload. Приём автора: держим его в globalThis.
++ */
++const globalForBooking = globalThis as unknown as { bookingMemory?: BookingRecord[] };
+ const memory: BookingRecord[] = globalForBooking.bookingMemory ?? [];
+ 
+ if (process.env.NODE_ENV !== "production") {
+@@ -20,12 +115,7 @@ if (process.env.NODE_ENV !== "production") {
+ 
+ export const inMemoryRepository: BookingRepository = {
+   async create(payload) {
+-    const record: BookingRecord = {
+-      ...payload,
+-      id: `BK-${Date.now().toString(36).toUpperCase()}`,
+-      createdAt: new Date().toISOString(),
+-      status: "new",
+-    };
++    const record = newRecord(payload);
+     memory.push(record);
+     return record;
+   },
+@@ -39,24 +129,32 @@ export const inMemoryRepository: BookingRepository = {
+   },
+ 
+   async cancel(id) {
+-    const booking = memory.find((b) => b.id === id);
+-    if (booking) {
+-      booking.status = "cancelled";
+-      return booking;
+-    }
+-    return null;
++    return inMemoryRepository.setStatus(id, "cancelled");
+   },
+ 
+   async reschedule(id, newDate, newTime) {
+     const booking = memory.find((b) => b.id === id);
+-    if (booking) {
+-      booking.date = newDate;
+-      booking.time = newTime;
+-      booking.status = "confirmed";
+-      return booking;
+-    }
+-    return null;
++    if (!booking) return null;
++    booking.date = newDate;
++    booking.time = newTime;
++    booking.status = "new";
++    return booking;
++  },
++
++  async listAll(limit = 500) {
++    return [...memory]
++      .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1))
++      .slice(0, limit);
++  },
++
++  async setStatus(id, status) {
++    const record = memory.find((b) => b.id === id);
++    if (!record) return null;
++    record.status = status;
++    return record;
+   },
+ };
+ 
+-export const bookingRepository: BookingRepository = inMemoryRepository;
++export const bookingRepository: BookingRepository = isMongoEnabled
++  ? mongoRepository
++  : inMemoryRepository;
+diff --git a/src/services/notifications/telegram.ts b/src/services/notifications/telegram.ts
+index 098d8d1..f9214ff 100644
+--- a/src/services/notifications/telegram.ts
++++ b/src/services/notifications/telegram.ts
+@@ -14,6 +14,25 @@ function esc(s: string) {
+   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+ }
+ 
++/**
++ * Время окончания визита. Мастеру важнее знать, до скольки он занят,
++ * чем складывать длительности процедур в уме.
++ */
++function endTime(b: BookingRecord) {
++  const [h, m] = b.time.split(":").map(Number);
++  const end = h * 60 + m + b.totalDurationMin;
++  return `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
++}
++
++function serviceLines(b: BookingRecord, bullet = "  • ") {
++  return b.lines
++    .map(
++      (l) =>
++        `${bullet}${esc(l.serviceTitle)} — ${esc(l.variantLabel)}, ${formatDuration(l.durationMin)}, ${formatPrice(l.price, b.currency)}`,
++    )
++    .join("\n");
++}
++
+ /** Сообщение для администратора */
+ export function buildAdminMessage(b: BookingRecord) {
+   const lines = [
+@@ -22,9 +41,14 @@ export function buildAdminMessage(b: BookingRecord) {
+     `<b>Имя:</b> ${esc(b.name)}`,
+     `<b>Телефон:</b> ${esc(b.phone)}`,
+     b.telegram ? `<b>Telegram:</b> ${esc(b.telegram)}` : "",
+-    `<b>Услуга:</b> ${esc(b.serviceTitle)} · ${formatDuration(b.durationMin)} · ${formatPrice(b.price, b.currency)}`,
++    "",
++    `<b>Процедуры (${b.lines.length}):</b>`,
++    serviceLines(b),
++    "",
++    `<b>Итого:</b> ${formatDuration(b.totalDurationMin)} · ${formatPrice(b.totalPrice, b.currency)}`,
++    `<b>Мастер:</b> ${esc(b.masterName)}`,
+     `<b>Дата:</b> ${formatDateLong(b.date)}`,
+-    `<b>Время:</b> ${b.time}`,
++    `<b>Время:</b> ${b.time} — ${endTime(b)}`,
+   ].filter(Boolean);
+ 
+   if (b.comment?.trim()) lines.push(`<b>Комментарий:</b> ${esc(b.comment.trim())}`);
+@@ -39,11 +63,11 @@ export function buildClientMessage(b: BookingRecord) {
+     `Здравствуйте, <b>${esc(b.name)}</b>! 👋`,
+     "",
+     "Ваша запись успешно подтверждена:",
+-    `• <b>Услуга:</b> ${esc(b.serviceTitle)}`,
++    serviceLines(b, "• "),
++    `• <b>Мастер:</b> ${esc(b.masterName)}`,
+     `• <b>Дата:</b> ${formatDateLong(b.date)}`,
+-    `• <b>Время:</b> ${b.time}`,
+-    `• <b>Длительность:</b> ${formatDuration(b.durationMin)}`,
+-    `• <b>Стоимость:</b> ${formatPrice(b.price, b.currency)}`,
++    `• <b>Время:</b> ${b.time} — ${endTime(b)}`,
++    `• <b>Стоимость:</b> ${formatPrice(b.totalPrice, b.currency)}`,
+     "",
+     "Ждём вас!",
+   ].join("\n");
+diff --git a/src/services/notifications/whatsapp.ts b/src/services/notifications/whatsapp.ts
+index fef73b6..39c22c7 100644
+--- a/src/services/notifications/whatsapp.ts
++++ b/src/services/notifications/whatsapp.ts
+@@ -38,9 +38,9 @@ export const whatsappChannel: NotificationChannel = {
+                 type: "body",
+                 parameters: [
+                   { type: "text", text: booking.name },
+-                  { type: "text", text: booking.serviceTitle },
++                  { type: "text", text: booking.lines.map((l) => l.serviceTitle).join(", ") },
+                   { type: "text", text: `${booking.date} at ${booking.time}` },
+-                  { type: "text", text: `${booking.price} ${booking.currency}` },
++                  { type: "text", text: `${booking.totalPrice} ${booking.currency}` },
+                 ],
+               },
+             ],
+diff --git a/src/services/settings-repository.ts b/src/services/settings-repository.ts
+new file mode 100644
+index 0000000..21b0886
+--- /dev/null
++++ b/src/services/settings-repository.ts
+@@ -0,0 +1,95 @@
++import { collections, getDb, isMongoEnabled } from "@/lib/mongodb";
++import { defaultMasters, defaultSettings } from "@/config/schedule";
++import type { Master, SalonSettings } from "@/types";
++
++export interface SalonStore {
++  settings: SalonSettings;
++  masters: Master[];
++  updatedAt: string;
++}
++
++/**
++ * Настройки салона — один документ с фиксированным _id.
++ * Их читает почти каждый запрос, поэтому держим в памяти процесса
++ * и сбрасываем кэш при записи из админки.
++ */
++export interface SettingsRepository {
++  read(): Promise<SalonStore>;
++  write(store: Pick<SalonStore, "settings" | "masters">): Promise<SalonStore>;
++}
++
++const DOC_ID = "salon";
++
++/** Документ настроек с человекочитаемым _id вместо ObjectId */
++type SettingsDoc = SalonStore & { _id: string };
++
++let cache: SalonStore | null = null;
++
++function fallback(): SalonStore {
++  return {
++    settings: defaultSettings,
++    masters: defaultMasters,
++    updatedAt: new Date(0).toISOString(),
++  };
++}
++
++/** Мягкое слияние: новое поле в коде не ломает уже сохранённый документ */
++function merge(doc: Partial<SalonStore> | null): SalonStore {
++  return {
++    settings: { ...defaultSettings, ...(doc?.settings ?? {}) },
++    masters: doc?.masters?.length ? doc.masters : defaultMasters,
++    updatedAt: doc?.updatedAt ?? new Date().toISOString(),
++  };
++}
++
++const mongoRepository: SettingsRepository = {
++  async read() {
++    if (cache) return cache;
++
++    try {
++      const db = await getDb();
++      const doc = await db.collection<SettingsDoc>(collections.settings).findOne({ _id: DOC_ID });
++
++      cache = merge(doc);
++    } catch (e) {
++      // База недоступна — салон продолжает принимать записи по дефолтному графику.
++      console.error("[settings] чтение из Mongo не удалось, беру значения по умолчанию", e);
++      cache = fallback();
++    }
++
++    return cache;
++  },
++
++  async write({ settings, masters }) {
++    const store: SalonStore = { settings, masters, updatedAt: new Date().toISOString() };
++
++    const db = await getDb();
++    await db
++      .collection<SettingsDoc>(collections.settings)
++      .updateOne({ _id: DOC_ID }, { $set: store }, { upsert: true });
++
++    cache = store;
++    return store;
++  },
++};
++
++/** Без базы правки живут до перезапуска — годится для демо, не для продакшена */
++const memoryRepository: SettingsRepository = {
++  async read() {
++    cache ??= fallback();
++    return cache;
++  },
++  async write({ settings, masters }) {
++    cache = { settings, masters, updatedAt: new Date().toISOString() };
++    return cache;
++  },
++};
++
++export const settingsRepository: SettingsRepository = isMongoEnabled
++  ? mongoRepository
++  : memoryRepository;
++
++/** Вызывается после записи из админки в другом инстансе */
++export function invalidateSettingsCache() {
++  cache = null;
++}
+diff --git a/src/types/index.ts b/src/types/index.ts
+index 3515989..112a2a3 100644
+--- a/src/types/index.ts
++++ b/src/types/index.ts
+@@ -2,16 +2,28 @@
+ 
+ export type ServiceCategory = "hair" | "nails" | "brows" | "care";
+ 
+-export interface Service {
++/**
++ * Вариант услуги. Стрижка на короткие волосы — 60 минут,
++ * на длинные — 120: это одна услуга с разной длительностью и ценой.
++ * Именно вариант, а не услуга, попадает в бронь.
++ */
++export interface ServiceVariant {
+   id: string;
+-  title: string;
+-  category: ServiceCategory;
++  label: string;
+   /** длительность в минутах — влияет на блокировку слотов */
+   durationMin: number;
+   price: number;
++}
++
++export interface Service {
++  id: string;
++  title: string;
++  category: ServiceCategory;
+   currency: string;
+   description?: string;
+   image: string;
++  /** минимум один вариант */
++  variants: ServiceVariant[];
+ }
+ 
+ export interface Master {
+@@ -19,6 +31,12 @@ export interface Master {
+   name: string;
+   role: string;
+   avatar?: string;
++  /** выключенный мастер не показывается в записи, но остаётся в истории */
++  active: boolean;
++  /** id услуг, которые мастер делает. Пустой массив = делает всё */
++  serviceIds: string[];
++  /** личные выходные: 0 = воскресенье ... 6 = суббота */
++  weekdaysOff: number[];
+ }
+ 
+ export interface Review {
+@@ -41,7 +59,8 @@ export interface GalleryItem {
+   src: string;
+   alt: string;
+ }
+-//  Фото-референс, приложенный к записи. dataUrl уже сжат на клиенте. */
++
++/** Фото-референс, приложенный к записи. dataUrl уже сжат на клиенте. */
+ export interface BookingPhoto {
+   id: string;
+   name: string;
+@@ -50,6 +69,7 @@ export interface BookingPhoto {
+   /** размер после сжатия, байты */
+   size: number;
+ }
++
+ /** Слот времени в формате "HH:mm" */
+ export type TimeSlot = string;
+ 
+@@ -60,31 +80,67 @@ export interface SlotState {
+   reason?: "booked" | "closed" | "past" | "duration";
+ }
+ 
++/** Одна позиция в брони: услуга + выбранный вариант */
++export interface BookingItem {
++  serviceId: string;
++  variantId: string;
++}
++
++/** Позиция вместе с раскрытыми данными — результат resolve */
++export interface ResolvedItem {
++  service: Service;
++  variant: ServiceVariant;
++}
++
++/** Итог по корзине услуг */
++export interface SelectionSummary {
++  items: ResolvedItem[];
++  durationMin: number;
++  price: number;
++  currency: string;
++}
++
+ /** То, что заполняет пользователь */
+ export interface BookingDraft {
+-  serviceId: string | null;
++  items: BookingItem[];
++  /** null = «любой мастер» */
++  masterId: string | null;
+   /** дата в формате YYYY-MM-DD */
+   date: string | null;
+   time: TimeSlot | null;
+   name: string;
+   phone: string;
+-  telegram?: string; // <-- Добавлено
++  /** username в Telegram для уведомлений клиенту */
++  telegram?: string;
+   comment?: string;
+   photos: BookingPhoto[];
+ }
+ 
+-/** То, что уходит на сервер */
+-export interface BookingPayload {
++/** Позиция в том виде, в каком она уходит на сервер и в чат */
++export interface BookingLine {
+   serviceId: string;
++  variantId: string;
+   serviceTitle: string;
++  variantLabel: string;
+   durationMin: number;
+   price: number;
++}
++
++/** То, что уходит на сервер */
++export interface BookingPayload {
++  lines: BookingLine[];
++  masterId: string | null;
++  /** имя на момент записи — мастер может уволиться, история не поедет */
++  masterName: string;
++  /** сумма длительностей — столько времени занимает визит */
++  totalDurationMin: number;
++  totalPrice: number;
+   currency: string;
+   date: string;
+   time: TimeSlot;
+   name: string;
+   phone: string;
+-  telegram?: string; // <-- Добавлено
++  telegram?: string;
+   comment?: string;
+   photos: BookingPhoto[];
+   source: "web";
+@@ -108,3 +164,29 @@ export interface WorkingDay {
+   close: TimeSlot | null;
+ }
+ 
++/**
++ * Настройки салона. Раньше были константами в коде,
++ * теперь редактируются управляющей через админку и лежат в хранилище.
++ */
++export interface SalonSettings {
++  workingHours: WorkingDay[];
++  /** разовые выходные: праздники, отпуск. YYYY-MM-DD */
++  closedDates: string[];
++  /** шаг сетки слотов, минут */
++  slotStepMin: number;
++  /** на сколько дней вперёд открыта запись */
++  horizonDays: number;
++}
++
++/** Всё, что нужно клиенту, чтобы посчитать слоты локально */
++export interface ScheduleContext {
++  settings: SalonSettings;
++  /** уже разрешённая занятость: дата -> [[время начала, длительность]] */
++  busy: Record<string, Array<[TimeSlot, number]>>;
++}
++
++/** Ответ /api/availability */
++export interface AvailabilityResponse extends ScheduleContext {
++  masters: Master[];
++  masterId: string | null;
++}

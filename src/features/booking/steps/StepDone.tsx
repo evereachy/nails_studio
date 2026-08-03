@@ -1,7 +1,7 @@
 "use client";
 
 import { site } from "@/config/site";
-import { formatDateLong } from "@/lib/format";
+import { formatDateLong, formatDuration } from "@/lib/format";
 import { useBooking } from "../BookingProvider";
 
 const BOT_NAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME; // e.g., "my_salon_bot"
@@ -26,10 +26,24 @@ export function StepDone() {
       </div>
 
       <h3 className="font-display text-2xl">Записали вас</h3>
+
       <p className="mx-auto mt-3 max-w-sm leading-relaxed text-muted">
-        {result.serviceTitle} — {formatDateLong(result.date)} в {result.time}. Мастер подтвердит
-        запись по телефону в течение 15 минут.
+        {formatDateLong(result.date)} в {result.time}, всего{" "}
+        {formatDuration(result.totalDurationMin)}
+        {result.masterId ? `, мастер ${result.masterName}` : ""}. Подтвердим запись по телефону
+        в течение 15 минут.
       </p>
+
+      <ul className="mx-auto mt-5 max-w-sm space-y-1.5 rounded-control bg-surface px-4 py-4 text-left text-sm">
+        {result.lines.map((l) => (
+          <li key={`${l.serviceId}-${l.variantId}`} className="flex justify-between gap-3">
+            <span className="min-w-0 truncate">
+              {l.serviceTitle} — <span className="text-muted">{l.variantLabel}</span>
+            </span>
+            <span className="shrink-0 tabular-nums text-muted">{formatDuration(l.durationMin)}</span>
+          </li>
+        ))}
+      </ul>
 
       {/* Кнопка отправки записи в Telegram клиента */}
       {BOT_NAME && (

@@ -1,13 +1,15 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import type { BookingDraft, BookingRecord } from "@/types";
+import type { BookingDraft, BookingItem, BookingRecord } from "@/types";
+import { toggleItem } from "@/lib/selection";
 import { postBooking } from "./api";
 
 export type BookingStep = 1 | 2 | 3 | 4;
 
 const emptyDraft: BookingDraft = {
-  serviceId: null,
+  items: [],
+  masterId: null,
   date: null,
   time: null,
   name: "",
@@ -19,6 +21,8 @@ const emptyDraft: BookingDraft = {
 interface BookingContextValue {
   draft: BookingDraft;
   patch: (p: Partial<BookingDraft>) => void;
+  /** добавить / заменить вариант / снять — с автосбросом времени */
+  toggle: (item: BookingItem) => void;
   step: BookingStep;
   goTo: (s: BookingStep) => void;
   isOpen: boolean;
@@ -50,6 +54,16 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const patch = useCallback((p: Partial<BookingDraft>) => {
     setDraft((d) => ({ ...d, ...p }));
+    setFieldErrors({});
+  }, []);
+
+  /**
+   * Любое изменение состава услуг обнуляет выбранное время:
+   * добавили процедуру — визит стал длиннее, и старый слот
+   * может уже не помещаться в расписание.
+   */
+  const toggle = useCallback((item: BookingItem) => {
+    setDraft((d) => ({ ...d, items: toggleItem(d.items, item), time: null }));
     setFieldErrors({});
   }, []);
 
@@ -85,18 +99,19 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       setError(res.error);
       setFieldErrors(res.fields ?? {});
       // возвращаем на шаг, где ошибка
-       if (res.fields?.serviceId) setStep(1);
-       else if (res.fields?.date || res.fields?.time) setStep(2);
-       else setStep(3);
+      if (res.fields?.items) setStep(1);
+      else if (res.fields?.masterId) setStep(2);
+      else if (res.fields?.date || res.fields?.time) setStep(2);
+      else setStep(3);
     }
   }, [draft]);
 
   const value = useMemo(
     () => ({
-      draft, patch, step, goTo: setStep, isOpen, open, close,
+      draft, patch, toggle, step, goTo: setStep, isOpen, open, close,
       status, error, fieldErrors, result, submit, reset,
     }),
-    [draft, patch, step, isOpen, open, close, status, error, fieldErrors, result, submit, reset],
+    [draft, patch, toggle, step, isOpen, open, close, status, error, fieldErrors, result, submit, reset],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

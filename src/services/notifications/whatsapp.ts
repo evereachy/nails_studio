@@ -38,9 +38,9 @@ export const whatsappChannel: NotificationChannel = {
                 type: "body",
                 parameters: [
                   { type: "text", text: booking.name },
-                  { type: "text", text: booking.serviceTitle },
+                  { type: "text", text: booking.lines.map((l) => l.serviceTitle).join(", ") },
                   { type: "text", text: `${booking.date} at ${booking.time}` },
-                  { type: "text", text: `${booking.price} ${booking.currency}` },
+                  { type: "text", text: `${booking.totalPrice} ${booking.currency}` },
                 ],
               },
             ],

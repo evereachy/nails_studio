@@ -46,7 +46,7 @@ const jsonLd = {
   telephone: site.contacts.phone,
   email: site.contacts.email,
   address: { "@type": "PostalAddress", streetAddress: site.contacts.address, addressLocality: site.city },
-  openingHours: ["Mo-Fr 09:00-20:00", "Sa 10:00-18:00"],
+  openingHours: ["Mo-Fr 09:00-20:00", "Sa-Su 10:00-18:00"],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

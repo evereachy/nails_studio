@@ -14,6 +14,25 @@ function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * Время окончания визита. Мастеру важнее знать, до скольки он занят,
+ * чем складывать длительности процедур в уме.
+ */
+function endTime(b: BookingRecord) {
+  const [h, m] = b.time.split(":").map(Number);
+  const end = h * 60 + m + b.totalDurationMin;
+  return `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+}
+
+function serviceLines(b: BookingRecord, bullet = "  • ") {
+  return b.lines
+    .map(
+      (l) =>
+        `${bullet}${esc(l.serviceTitle)} — ${esc(l.variantLabel)}, ${formatDuration(l.durationMin)}, ${formatPrice(l.price, b.currency)}`,
+    )
+    .join("\n");
+}
+
 /** Сообщение для администратора */
 export function buildAdminMessage(b: BookingRecord) {
   const lines = [
@@ -22,9 +41,14 @@ export function buildAdminMessage(b: BookingRecord) {
     `<b>Имя:</b> ${esc(b.name)}`,
     `<b>Телефон:</b> ${esc(b.phone)}`,
     b.telegram ? `<b>Telegram:</b> ${esc(b.telegram)}` : "",
-    `<b>Услуга:</b> ${esc(b.serviceTitle)} · ${formatDuration(b.durationMin)} · ${formatPrice(b.price, b.currency)}`,
+    "",
+    `<b>Процедуры (${b.lines.length}):</b>`,
+    serviceLines(b),
+    "",
+    `<b>Итого:</b> ${formatDuration(b.totalDurationMin)} · ${formatPrice(b.totalPrice, b.currency)}`,
+    `<b>Мастер:</b> ${esc(b.masterName)}`,
     `<b>Дата:</b> ${formatDateLong(b.date)}`,
-    `<b>Время:</b> ${b.time}`,
+    `<b>Время:</b> ${b.time} — ${endTime(b)}`,
   ].filter(Boolean);
 
   if (b.comment?.trim()) lines.push(`<b>Комментарий:</b> ${esc(b.comment.trim())}`);
@@ -39,11 +63,11 @@ export function buildClientMessage(b: BookingRecord) {
     `Здравствуйте, <b>${esc(b.name)}</b>! 👋`,
     "",
     "Ваша запись успешно подтверждена:",
-    `• <b>Услуга:</b> ${esc(b.serviceTitle)}`,
+    serviceLines(b, "• "),
+    `• <b>Мастер:</b> ${esc(b.masterName)}`,
     `• <b>Дата:</b> ${formatDateLong(b.date)}`,
-    `• <b>Время:</b> ${b.time}`,
-    `• <b>Длительность:</b> ${formatDuration(b.durationMin)}`,
-    `• <b>Стоимость:</b> ${formatPrice(b.price, b.currency)}`,
+    `• <b>Время:</b> ${b.time} — ${endTime(b)}`,
+    `• <b>Стоимость:</b> ${formatPrice(b.totalPrice, b.currency)}`,
     "",
     "Ждём вас!",
   ].join("\n");
