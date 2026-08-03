@@ -4,9 +4,9 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
-import { services } from "@/config/catalog";
+import { defaultVariant, minPrice, services } from "@/config/catalog";
 import { site } from "@/config/site";
-import { formatDuration, formatPrice } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { useBooking } from "@/features/booking/BookingProvider";
 
 /**
@@ -15,12 +15,19 @@ import { useBooking } from "@/features/booking/BookingProvider";
  * На мобиле карточка выбора прижата к низу экрана — в зоне большого пальца.
  */
 export function Hero() {
-  const { open, patch } = useBooking();
+  const { open, toggle } = useBooking();
   const quick = services.slice(0, 3);
 
+  /**
+   * Быстрый старт подставляет средний вариант и открывает шаг выбора:
+   * человек сразу видит, что длительность можно поменять,
+   * и что процедур можно взять несколько.
+   */
   const start = (serviceId: string) => {
-    patch({ serviceId, time: null });
-    open(2);
+    const service = services.find((s) => s.id === serviceId);
+    if (!service) return;
+    toggle({ serviceId, variantId: defaultVariant(service).id });
+    open(1);
   };
 
   return (
@@ -64,7 +71,9 @@ export function Hero() {
             className="mt-7 md:mt-0"
           >
             <div className="rounded-card border border-line bg-elevated/85 p-4 shadow-lift backdrop-blur-xl md:p-6">
-              <p className="mb-3 text-sm text-muted">Выберите услугу — покажем свободное время</p>
+              <p className="mb-3 text-sm text-muted">
+                Выберите процедуры — покажем свободное время
+              </p>
 
               <div className="space-y-2">
                 {quick.map((s) => (
@@ -75,10 +84,12 @@ export function Hero() {
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-[15px]">{s.title}</span>
-                      <span className="text-sm text-muted">{formatDuration(s.durationMin)}</span>
+                      <span className="text-sm text-muted">
+                        {s.variants.length} варианта по времени
+                      </span>
                     </span>
                     <span className="shrink-0 text-[15px] tabular-nums text-muted">
-                      {formatPrice(s.price, s.currency)}
+                      от {formatPrice(minPrice(s), s.currency)}
                     </span>
                   </button>
                 ))}

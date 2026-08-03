@@ -1,21 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BOOKING_HORIZON_DAYS } from "@/config/schedule";
-import { getService } from "@/config/catalog";
 import { cn } from "@/lib/cn";
 import { formatDuration, splitDate } from "@/lib/format";
 import { buildDays, buildSlots } from "@/lib/slots";
+import { exceedsWorkday, mastersForItems, summarize } from "@/lib/selection";
 import { useBooking } from "../BookingProvider";
+import { useAvailability } from "../AvailabilityProvider";
 
 export function StepWhen() {
   const { draft, patch, fieldErrors } = useBooking();
-  const service = getService(draft.serviceId);
+  const { data, loading, error, load } = useAvailability();
 
-  // All days the backend considers bookable (not closed + inside horizon)
+  // Итог по всем выбранным процедурам: длительность визита — это их сумма.
+  const summary = useMemo(() => summarize(draft.items), [draft.items]);
+
+  // Мастера, которые делают ВСЕ выбранные процедуры.
+  // Показывать остальных бессмысленно: человек выберет и упрётся в отказ.
+  const eligible = useMemo(
+    () => (data ? mastersForItems(data.masters, draft.items) : []),
+    [data, draft.items],
+  );
+
+  // Дни, доступные для записи у выбранного мастера
   const bookableDays = useMemo(
-    () => buildDays(BOOKING_HORIZON_DAYS).filter((d) => !d.closed),
-    [],
+    () => (data ? buildDays(data).filter((d) => !d.closed) : []),
+    [data],
   );
 
   const bookableSet = useMemo(
@@ -33,24 +43,106 @@ export function StepWhen() {
   const [monthIndex, setMonthIndex] = useState(0);
   const currentYm = months[monthIndex] ?? months[0]; // "YYYY-MM"
 
+  // Слоты считаются от СУММАРНОЙ длительности:
+  // стрижка 90 мин + маникюр 120 мин = мастеру нужно свободное окно в 3.5 часа.
   const slots = useMemo(
-    () => (draft.date && service ? buildSlots(draft.date, service.durationMin) : []),
-    [draft.date, service],
+    () =>
+      data && draft.date && summary.durationMin
+        ? buildSlots(data, draft.date, summary.durationMin)
+        : [],
+    [data, draft.date, summary.durationMin],
   );
 
-  if (!service) {
-    return <p className="text-muted">Сначала выберите услугу.</p>;
+  /** Смена мастера перезагружает расписание и сбрасывает время */
+  const pickMaster = (masterId: string | null) => {
+    patch({ masterId, time: null });
+    load(masterId);
+  };
+
+  if (summary.items.length === 0) {
+    return <p className="text-muted">Сначала выберите хотя бы одну процедуру.</p>;
+  }
+
+  if (!data) {
+    return (
+      <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
+        {error ? `${error}. Обновите страницу или позвоните нам.` : "Загружаем расписание…"}
+      </p>
+    );
+  }
+
+  // Набор из нескольких процедур может не влезть в смену.
+  // Без этой проверки человек увидел бы пустую сетку и решил, что всё занято.
+  if (exceedsWorkday(data, summary.durationMin)) {
+    return (
+      <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
+        Выбрано на {formatDuration(summary.durationMin)} — это дольше рабочего дня.
+        Вернитесь на шаг назад и уберите одну процедуру.
+      </p>
+    );
   }
 
   const free = slots.filter((s) => s.available);
 
   return (
     <div className="space-y-8">
+      {/* ===== MASTER ===== */}
+      {eligible.length > 0 && (
+        <div>
+          <p className="mb-3 text-sm text-muted">Мастер</p>
+
+          <div className="rail">
+            <button
+              type="button"
+              onClick={() => pickMaster(null)}
+              className={cn(
+                "min-h-11 rounded-control border px-4 text-[15px] transition-colors duration-200 ease-soft",
+                draft.masterId === null
+                  ? "border-ink bg-accent text-accent-ink"
+                  : "border-line bg-elevated",
+              )}
+            >
+              Любой
+            </button>
+
+            {eligible.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => pickMaster(m.id)}
+                className={cn(
+                  "min-h-11 rounded-control border px-4 text-left text-[15px]",
+                  "transition-colors duration-200 ease-soft",
+                  draft.masterId === m.id
+                    ? "border-ink bg-accent text-accent-ink"
+                    : "border-line bg-elevated",
+                )}
+              >
+                {m.name}
+              </button>
+            ))}
+          </div>
+
+          <p className="mt-2 text-xs text-muted">
+            {draft.masterId
+              ? "Показываем только его свободные часы"
+              : "Свободное время любого подходящего мастера"}
+          </p>
+        </div>
+      )}
+
       {/* ===== DATE ===== */}
       <div>
         <p className="mb-3 text-sm text-muted">Дата</p>
 
-        <div className="rounded-2xl border border-line bg-elevated overflow-hidden">
+        <div
+          className={cn(
+            "rounded-2xl border border-line bg-elevated overflow-hidden",
+            // при смене мастера сетка перестраивается — гасим её, чтобы
+            // не тапнули по дате, которая через миг станет недоступной
+            loading && "pointer-events-none opacity-50",
+          )}
+        >
           {/* Month header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-surface/60">
             <button
@@ -154,9 +246,9 @@ export function StepWhen() {
       {/* ===== TIME ===== */}
       <div>
         <div className="mb-3 flex items-baseline justify-between gap-3">
-          <p className="text-sm text-muted">Время</p>
+          <p className="text-sm text-muted">Время начала</p>
           <p className="text-xs text-muted">
-            Процедура — {formatDuration(service.durationMin)}
+            Визит займёт {formatDuration(summary.durationMin)}
           </p>
         </div>
 
@@ -166,8 +258,8 @@ export function StepWhen() {
           </p>
         ) : free.length === 0 ? (
           <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
-            На этот день всё занято. Посмотрите соседние даты или позвоните нам —
-            иногда освобождаются окна.
+            На этот день нет свободного окна в {formatDuration(summary.durationMin)}{" "}
+            подряд. Посмотрите соседние даты или уберите одну процедуру.
           </p>
         ) : (
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { Section } from "@/components/ui/Section";
 import { Card } from "@/components/ui/Card";
-import { services } from "@/config/catalog";
+import { defaultVariant, minPrice, services } from "@/config/catalog";
 import { formatDuration, formatPrice } from "@/lib/format";
 import { useBooking } from "@/features/booking/BookingProvider";
 
@@ -13,14 +13,14 @@ import { useBooking } from "@/features/booking/BookingProvider";
  * а горизонтальный скролл прячет половину каталога.
  */
 export function Services() {
-  const { patch, open } = useBooking();
+  const { toggle, open } = useBooking();
 
   return (
     <Section
       id="services"
       eyebrow="Услуги"
       title="Прайс без звёздочек"
-      lead="Цена указана за среднюю длину волос. Если нужен больший объём состава, мастер назовёт итог до начала работы."
+      lead="У каждой процедуры несколько вариантов по времени — от короткого до полного. Точная длительность выбирается при записи, чтобы мастер заложил нужное окно."
       className="bg-surface"
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -28,8 +28,8 @@ export function Services() {
           <Card key={s.id} className="overflow-hidden hover:shadow-lift">
             <button
               onClick={() => {
-                patch({ serviceId: s.id, time: null });
-                open(2);
+                toggle({ serviceId: s.id, variantId: defaultVariant(s).id });
+                open(1);
               }}
               className="flex w-full items-center gap-4 p-3 text-left sm:block sm:p-0"
             >
@@ -46,9 +46,14 @@ export function Services() {
               <div className="min-w-0 flex-1 sm:p-5">
                 <div className="flex items-baseline justify-between gap-3">
                   <h3 className="truncate text-[17px]">{s.title}</h3>
-                  <span className="shrink-0 tabular-nums">{formatPrice(s.price, s.currency)}</span>
+                  <span className="shrink-0 tabular-nums">
+                    от {formatPrice(minPrice(s), s.currency)}
+                  </span>
                 </div>
-                <p className="mt-1 text-sm text-muted">{formatDuration(s.durationMin)}</p>
+                <p className="mt-1 text-sm text-muted">
+                  {formatDuration(Math.min(...s.variants.map((v) => v.durationMin)))} —{" "}
+                  {formatDuration(Math.max(...s.variants.map((v) => v.durationMin)))}
+                </p>
                 <p className="mt-2 hidden text-sm leading-relaxed text-muted sm:block">
                   {s.description}
                 </p>

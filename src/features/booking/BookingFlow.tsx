@@ -8,7 +8,9 @@ import { StepService } from "./steps/StepService";
 import { StepWhen } from "./steps/StepWhen";
 import { StepContact } from "./steps/StepContact";
 import { StepDone } from "./steps/StepDone";
-import { isValidPhone } from "@/lib/format";
+import { formatDuration, formatPrice, isValidPhone } from "@/lib/format";
+import { exceedsWorkday, summarize } from "@/lib/selection";
+import { useAvailability } from "./AvailabilityProvider";
 
 const titles: Record<BookingStep, string> = {
   1: "Что делаем",
@@ -23,10 +25,13 @@ const titles: Record<BookingStep, string> = {
  */
 export function BookingFlow({ className }: { className?: string }) {
   const { step, goTo, draft, submit, status, error, reset } = useBooking();
+  const { data } = useAvailability();
+
+  const summary = summarize(draft.items);
 
   const canContinue =
     step === 1
-      ? Boolean(draft.serviceId)
+      ? summary.items.length > 0 && !exceedsWorkday(data, summary.durationMin)
       : step === 2
         ? Boolean(draft.date && draft.time)
         : draft.name.trim().length >= 2 && isValidPhone(draft.phone);
@@ -74,7 +79,21 @@ export function BookingFlow({ className }: { className?: string }) {
       </div>
 
       {/* Панель действий закреплена внизу — на мобиле кнопка всегда под большим пальцем */}
-      <div className="safe-b sticky bottom-0 shrink-0 border-t border-line bg-bg/90 px-5 pt-4 backdrop-blur">
+      <div className="safe-b sticky bottom-0 shrink-0 border-t border-line bg-bg/90 px-5 pt-3 backdrop-blur">
+        {/* Итог по корзине виден на всех шагах: человек всегда знает,
+            сколько времени и денег стоит его набор процедур */}
+        {step < 4 && summary.items.length > 0 && (
+          <p className="mb-3 flex items-baseline justify-between gap-3 text-sm">
+            <span className="truncate text-muted">
+              {summary.items.length}{" "}
+              {summary.items.length === 1 ? "процедура" : summary.items.length < 5 ? "процедуры" : "процедур"}{" "}
+              · {formatDuration(summary.durationMin)}
+            </span>
+            <span className="shrink-0 tabular-nums">
+              {formatPrice(summary.price, summary.currency)}
+            </span>
+          </p>
+        )}
         {step === 4 ? (
           <Button variant="secondary" fullWidth size="lg" onClick={reset}>
             Записаться ещё раз

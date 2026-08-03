@@ -1,26 +1,72 @@
-import type { WorkingDay } from "@/types";
-
-/** График салона. Позже приедет из админки. */
-export const workingHours: WorkingDay[] = [
-  { weekday: 1, open: "09:00", close: "20:00" },
-  { weekday: 2, open: "09:00", close: "20:00" },
-  { weekday: 3, open: "09:00", close: "20:00" },
-  { weekday: 4, open: "09:00", close: "20:00" },
-  { weekday: 5, open: "09:00", close: "20:00" },
-  { weekday: 6, open: "10:00", close: "18:00" },
-  { weekday: 0, open: null, close: null }, // воскресенье
-];
-
-/** Шаг сетки слотов в минутах */
-export const SLOT_STEP_MIN = 30;
-
-/** На сколько дней вперёд открыта запись */
-export const BOOKING_HORIZON_DAYS = 21;
+import type { Master, SalonSettings } from "@/types";
 
 /**
- * MOCK: уже занятые интервалы.
- * Ключ — дата YYYY-MM-DD, значение — [начало, длительность в минутах].
- * Заменяется на SELECT из БД, сигнатура getBusyIntervals() не меняется.
+ * ЗНАЧЕНИЯ ПО УМОЛЧАНИЮ.
+ *
+ * Это уже не «настройки салона», а стартовый набор: при первом запуске
+ * они копируются в хранилище, дальше управляющая правит их через /admin,
+ * и код сюда больше не заглядывает.
+ */
+export const defaultSettings: SalonSettings = {
+  workingHours: [
+    { weekday: 1, open: "09:00", close: "20:00" },
+    { weekday: 2, open: "09:00", close: "20:00" },
+    { weekday: 3, open: "09:00", close: "20:00" },
+    { weekday: 4, open: "09:00", close: "20:00" },
+    { weekday: 5, open: "09:00", close: "20:00" },
+    { weekday: 6, open: "10:00", close: "18:00" },
+    { weekday: 0, open: "10:00", close: "18:00" },
+  ],
+  closedDates: [],
+  slotStepMin: 30,
+  horizonDays: 60,
+};
+
+export const defaultMasters: Master[] = [
+  {
+    id: "anna",
+    name: "Анна",
+    role: "Колорист, стрижки",
+    active: true,
+    serviceIds: ["haircut", "coloring", "styling"],
+    weekdaysOff: [0],
+  },
+  {
+    id: "lena",
+    name: "Лена",
+    role: "Мастер ногтевого сервиса",
+    active: true,
+    serviceIds: ["manicure"],
+    weekdaysOff: [1],
+  },
+  {
+    id: "vera",
+    name: "Вера",
+    role: "Брови и ресницы",
+    active: true,
+    serviceIds: [],
+    weekdaysOff: [2],
+  },
+];
+
+/** Русские названия дней для админки и подписей */
+export const weekdayNames: Record<number, string> = {
+  1: "Понедельник",
+  2: "Вторник",
+  3: "Среда",
+  4: "Четверг",
+  5: "Пятница",
+  6: "Суббота",
+  0: "Воскресенье",
+};
+
+/** Порядок вывода: неделя начинается с понедельника */
+export const weekdayOrder = [1, 2, 3, 4, 5, 6, 0];
+
+/**
+ * MOCK: демонстрационная занятость, чтобы сетка слотов не выглядела пустой.
+ * Ключ — смещение в днях от сегодня. Реальные брони приходят из репозитория
+ * и складываются с этими интервалами.
  */
 const MOCK_BUSY: Record<string, Array<[string, number]>> = {
   "+0": [["11:00", 120], ["15:00", 180]],
@@ -29,8 +75,7 @@ const MOCK_BUSY: Record<string, Array<[string, number]>> = {
   "+3": [["12:00", 120], ["17:00", 60]],
 };
 
-/** Демо-генерация: раскладываем моки относительно сегодняшнего дня. */
-export function getBusyIntervals(dateISO: string): Array<[string, number]> {
+export function getMockBusy(dateISO: string): Array<[string, number]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = new Date(`${dateISO}T00:00:00`);

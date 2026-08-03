@@ -2,6 +2,7 @@ import { Footer } from "@/blocks/Footer";
 import { Navbar } from "@/components/layout/Navbar";
 import { StickyBookBar } from "@/components/layout/StickyBookBar";
 import { pageBlocks } from "@/config/blocks";
+import { AvailabilityProvider } from "@/features/booking/AvailabilityProvider";
 import { BookingProvider } from "@/features/booking/BookingProvider";
 import { BookingSheet } from "@/features/booking/BookingSheet";
 
@@ -11,7 +12,8 @@ import { BookingSheet } from "@/features/booking/BookingSheet";
  */
 export default function HomePage() {
   return (
-    <BookingProvider>
+    <AvailabilityProvider>
+      <BookingProvider>
       <Navbar />
 
       <main>
@@ -25,6 +27,7 @@ export default function HomePage() {
       <Footer />
       <StickyBookBar />
       <BookingSheet />
-    </BookingProvider>
+      </BookingProvider>
+    </AvailabilityProvider>
   );
 }
