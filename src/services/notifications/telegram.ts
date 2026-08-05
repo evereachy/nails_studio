@@ -161,6 +161,51 @@ function target() {
     : { chat_id: CHAT_ID };
 }
 
+/** data:image/jpeg;base64,... -> Blob для multipart-загрузки */
+function dataUrlToBlob(dataUrl: string) {
+  const comma = dataUrl.indexOf(",");
+  const mime = /^data:([^;]+);/.exec(dataUrl)?.[1] ?? "image/jpeg";
+  const bytes = Buffer.from(dataUrl.slice(comma + 1), "base64");
+  return new Blob([new Uint8Array(bytes)], { type: mime });
+}
+
+/**
+ * Фото уходят отдельным сообщением сразу за текстом записи.
+ *
+ * Одно фото альбомом слать нельзя — для него sendPhoto.
+ * Больше десяти Telegram в один альбом не берёт, поэтому режем.
+ * Файлы отправляются multipart-ом: JSON с base64 Telegram не принимает.
+ */
+async function sendPhotos(booking: BookingRecord) {
+  const photos = (booking.photos ?? []).slice(0, 10);
+  if (photos.length === 0) return;
+
+  const form = new FormData();
+  for (const [k, v] of Object.entries(target())) form.append(k, String(v));
+
+  const caption = `Фото к записи #${booking.id} — ${booking.name}`;
+  const single = photos.length === 1;
+
+  if (single) {
+    form.append("photo", dataUrlToBlob(photos[0].dataUrl), photos[0].name);
+    form.append("caption", caption);
+  } else {
+    form.append(
+      "media",
+      JSON.stringify(
+        photos.map((p, i) => ({
+          type: "photo",
+          media: `attach://file${i}`,
+          ...(i === 0 ? { caption } : {}),
+        })),
+      ),
+    );
+    photos.forEach((p, i) => form.append(`file${i}`, dataUrlToBlob(p.dataUrl), p.name));
+  }
+
+  await tgCall(single ? "sendPhoto" : "sendMediaGroup", form);
+}
+
 export const telegramChannel: NotificationChannel = {
   id: "telegram",
 
@@ -174,6 +219,14 @@ export const telegramChannel: NotificationChannel = {
       parse_mode: "HTML",
       disable_web_page_preview: true,
     });
+
+    // Фото — дополнение, а не суть заявки. Если Telegram не принял картинку,
+    // мастер уже получил имя, телефон и время: ронять из-за этого запись нельзя.
+    try {
+      await sendPhotos(booking);
+    } catch (e) {
+      console.error("[telegram] фото не доставлены", e);
+    }
   },
 };
 

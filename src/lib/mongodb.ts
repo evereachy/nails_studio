@@ -47,6 +47,7 @@ export async function getDb(): Promise<Db> {
 export const collections = {
   bookings: "bookings",
   settings: "settings",
+  photos: "booking_photos",
 } as const;
 
 let indexesReady: Promise<void> | null = null;

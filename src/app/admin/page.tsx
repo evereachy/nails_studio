@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { services } from "@/config/catalog";
 import { weekdayNames, weekdayOrder } from "@/config/schedule";
 import { cn } from "@/lib/cn";
@@ -485,6 +485,10 @@ function MasterEditor({
 
 function BookingsTab() {
   const [items, setItems] = useState<BookingRecord[] | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string>(todayIso());
+  const [viewYm, setViewYm] = useState<string>(todayIso().slice(0, 7));
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(() => {
     fetch("/api/admin/bookings")
@@ -503,69 +507,313 @@ function BookingsTab() {
     load();
   }
 
+  /**
+   * Группировка по дате считается один раз на загрузку.
+   * Иначе при каждом переключении месяца пришлось бы фильтровать
+   * весь массив по 30 раз — по разу на ячейку сетки.
+   */
+  const byDate = useMemo(() => {
+    const map = new Map<string, BookingRecord[]>();
+    for (const b of items ?? []) {
+      const list = map.get(b.date) ?? [];
+      list.push(b);
+      map.set(b.date, list);
+    }
+    for (const list of map.values()) list.sort((a, b) => (a.time < b.time ? -1 : 1));
+    return map;
+  }, [items]);
+
   if (!items) return <p className="text-muted">Загружаем…</p>;
-  if (items.length === 0) return <p className="text-muted">Записей пока нет.</p>;
+
+  const dayItems = byDate.get(selected) ?? [];
+  const visible = showAll ? items : dayItems;
 
   return (
-    <div className="space-y-2">
-      {items.map((b) => (
-        <div key={b.id} className="rounded-control border border-line p-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-[15px]">
-              {formatDateLong(b.date)}, {b.time}
-            </p>
-            <span
-              className={cn(
-                "shrink-0 rounded-pill px-2 py-0.5 text-xs",
-                b.status === "confirmed" && "bg-accent text-accent-ink",
-                b.status === "cancelled" && "bg-surface text-muted line-through",
-                b.status === "new" && "border border-line",
-              )}
-            >
-              {b.status === "new" ? "новая" : b.status === "confirmed" ? "подтверждена" : "отменена"}
-            </span>
-          </div>
+    <div className="space-y-4">
+      {preview && <PhotoViewer id={preview} onClose={() => setPreview(null)} />}
 
-          <p className="mt-1 text-sm text-muted">
-            {b.name} · <a href={`tel:${b.phone}`} className="text-ink underline underline-offset-2">{b.phone}</a> · {b.masterName}
-          </p>
+      {/* ===== КАЛЕНДАРЬ ===== */}
+      <div className="overflow-hidden rounded-2xl border border-line bg-elevated">
+        <div className="flex items-center justify-between border-b border-line bg-surface/60 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setViewYm(shiftYm(viewYm, -1))}
+            aria-label="Предыдущий месяц"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-colors hover:bg-line/60 active:bg-line"
+          >
+            ‹
+          </button>
 
-          <ul className="mt-2 space-y-0.5 text-sm text-muted">
-            {b.lines.map((l) => (
-              <li key={`${l.serviceId}-${l.variantId}`}>
-                {l.serviceTitle} — {l.variantLabel}, {formatDuration(l.durationMin)}
-              </li>
-            ))}
-          </ul>
+          <button
+            type="button"
+            onClick={() => {
+              setViewYm(todayIso().slice(0, 7));
+              setSelected(todayIso());
+              setShowAll(false);
+            }}
+            className="text-[15px] font-medium capitalize"
+          >
+            {formatMonthLabel(viewYm)}
+          </button>
 
-          <p className="mt-2 text-sm">
-            {formatDuration(b.totalDurationMin)} · {formatPrice(b.totalPrice, b.currency)}
-          </p>
-
-          {b.comment && <p className="mt-2 text-sm text-muted">«{b.comment}»</p>}
-
-          {b.status !== "cancelled" && (
-            <div className="mt-3 flex gap-2">
-              {b.status === "new" && (
-                <button
-                  onClick={() => setStatus(b.id, "confirmed")}
-                  className="min-h-11 flex-1 rounded-control bg-accent text-sm text-accent-ink"
-                >
-                  Подтвердить
-                </button>
-              )}
-              <button
-                onClick={() => setStatus(b.id, "cancelled")}
-                className="min-h-11 flex-1 rounded-control border border-line text-sm"
-              >
-                Отменить
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setViewYm(shiftYm(viewYm, 1))}
+            aria-label="Следующий месяц"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-colors hover:bg-line/60 active:bg-line"
+          >
+            ›
+          </button>
         </div>
-      ))}
+
+        <div className="grid grid-cols-7 gap-px px-2 pb-1 pt-3">
+          {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
+            <div
+              key={d}
+              className="text-center text-[11px] font-medium uppercase tracking-wide text-muted"
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1.5 p-2 sm:p-3">
+          {monthCells(viewYm).map((cell, idx) => {
+            if (!cell) return <div key={`e-${idx}`} className="aspect-square" />;
+
+            const { iso, day } = cell;
+            const all = byDate.get(iso) ?? [];
+            // Отменённые точку не рисуют: для управляющей это свободный день
+            const active = all.filter((b) => b.status !== "cancelled");
+            const isSelected = selected === iso && !showAll;
+            const isToday = iso === todayIso();
+
+            return (
+              <button
+                key={iso}
+                type="button"
+                onClick={() => {
+                  setSelected(iso);
+                  setShowAll(false);
+                }}
+                className={cn(
+                  "relative flex aspect-square flex-col items-center justify-center rounded-xl text-[15px] font-medium tabular-nums transition-all duration-150 active:scale-95",
+                  isSelected
+                    ? "bg-accent text-accent-ink shadow-md shadow-accent/25"
+                    : "bg-surface text-ink hover:bg-line/50",
+                  isToday && !isSelected && "ring-2 ring-accent/40",
+                )}
+              >
+                {day}
+
+                {active.length > 0 && (
+                  <span
+                    className={cn(
+                      "absolute bottom-1.5 h-1.5 w-1.5 rounded-full",
+                      isSelected ? "bg-accent-ink" : "bg-accent",
+                    )}
+                    aria-label={`${active.length} записей`}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ===== ШАПКА СПИСКА ===== */}
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[15px]">
+          {showAll ? "Все записи" : formatDateLong(selected)}{" "}
+          <span className="text-muted">· {visible.length}</span>
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="shrink-0 text-sm text-muted underline underline-offset-4"
+        >
+          {showAll ? "По дням" : "Показать все"}
+        </button>
+      </div>
+
+      {/* ===== СПИСОК ===== */}
+      {visible.length === 0 ? (
+        <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
+          На этот день записей нет.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {visible.map((b) => (
+            <BookingCard
+              key={b.id}
+              booking={b}
+              showDate={showAll}
+              onStatus={setStatus}
+              onPreview={setPreview}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+function BookingCard({
+  booking: b,
+  showDate,
+  onStatus,
+  onPreview,
+}: {
+  booking: BookingRecord;
+  showDate: boolean;
+  onStatus: (id: string, status: BookingRecord["status"]) => void;
+  onPreview: (photoId: string) => void;
+}) {
+  return (
+    <div className="rounded-control border border-line p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[15px]">
+          {showDate ? `${formatDateLong(b.date)}, ${b.time}` : b.time}
+        </p>
+        <span
+          className={cn(
+            "shrink-0 rounded-pill px-2 py-0.5 text-xs",
+            b.status === "confirmed" && "bg-accent text-accent-ink",
+            b.status === "cancelled" && "bg-surface text-muted line-through",
+            b.status === "new" && "border border-line",
+          )}
+        >
+          {b.status === "new" ? "новая" : b.status === "confirmed" ? "подтверждена" : "отменена"}
+        </span>
+      </div>
+
+      <p className="mt-1 text-sm text-muted">
+        {b.name} ·{" "}
+        <a href={`tel:${b.phone}`} className="text-ink underline underline-offset-2">
+          {b.phone}
+        </a>{" "}
+        · {b.masterName}
+      </p>
+
+      <ul className="mt-2 space-y-0.5 text-sm text-muted">
+        {b.lines.map((l) => (
+          <li key={`${l.serviceId}-${l.variantId}`}>
+            {l.serviceTitle} — {l.variantLabel}, {formatDuration(l.durationMin)}
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-2 text-sm">
+        {formatDuration(b.totalDurationMin)} · {formatPrice(b.totalPrice, b.currency)}
+      </p>
+
+      {b.comment && <p className="mt-2 text-sm text-muted">«{b.comment}»</p>}
+
+      {/* Фото-референсы. Грузятся лениво: в списке из полусотни записей
+          иначе разом полетело бы полторы сотни запросов за картинками */}
+      {b.photoIds && b.photoIds.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {b.photoIds.map((pid) => (
+            <button
+              key={pid}
+              type="button"
+              onClick={() => onPreview(pid)}
+              className="h-20 w-20 overflow-hidden rounded-control border border-line bg-surface"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/admin/photos/${pid}`}
+                alt="Фото к записи"
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {b.status !== "cancelled" && (
+        <div className="mt-3 flex gap-2">
+          {b.status === "new" && (
+            <button
+              onClick={() => onStatus(b.id, "confirmed")}
+              className="min-h-11 flex-1 rounded-control bg-accent text-sm text-accent-ink"
+            >
+              Подтвердить
+            </button>
+          )}
+          <button
+            onClick={() => onStatus(b.id, "cancelled")}
+            className="min-h-11 flex-1 rounded-control border border-line text-sm"
+          >
+            Отменить
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Полноэкранный просмотр: миниатюры 80px мало, чтобы разглядеть оттенок */
+function PhotoViewer({ id, onClose }: { id: string; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/api/admin/photos/${id}`}
+        alt="Фото к записи"
+        className="max-h-full max-w-full rounded-card object-contain"
+      />
+      <button
+        type="button"
+        aria-label="Закрыть"
+        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-pill bg-white/15 text-2xl text-white"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+/* --------------------------- Календарь: helpers -------------------------- */
+
+/** Локальная дата, а не UTC: toISOString ночью отдаёт вчерашний день */
+function todayIso() {
+  const d = new Date();
+  const tz = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tz).toISOString().slice(0, 10);
+}
+
+function shiftYm(ym: string, delta: number) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+}
+
+/**
+ * Сетка месяца с понедельника. В отличие от клиентской формы,
+ * прошлые дни здесь активны: управляющей нужна история визитов.
+ */
+function monthCells(ym: string): Array<{ iso: string; day: number } | null> {
+  const [year, month] = ym.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const firstWeekday = (new Date(year, month - 1, 1).getDay() + 6) % 7;
+
+  const cells: Array<{ iso: string; day: number } | null> = Array(firstWeekday).fill(null);
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push({ iso: `${ym}-${String(day).padStart(2, "0")}`, day });
+  }
+  return cells;
 }
 
 /* ------------------------------ Мелочи ---------------------------------- */

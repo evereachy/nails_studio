@@ -1,0 +1,695 @@
+diff --git a/src/app/admin/page.tsx b/src/app/admin/page.tsx
+index 4d8bd64..091c881 100644
+--- a/src/app/admin/page.tsx
++++ b/src/app/admin/page.tsx
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useCallback, useEffect, useState } from "react";
++import { useCallback, useEffect, useMemo, useState } from "react";
+ import { services } from "@/config/catalog";
+ import { weekdayNames, weekdayOrder } from "@/config/schedule";
+ import { cn } from "@/lib/cn";
+@@ -485,6 +485,10 @@ function MasterEditor({
+ 
+ function BookingsTab() {
+   const [items, setItems] = useState<BookingRecord[] | null>(null);
++  const [preview, setPreview] = useState<string | null>(null);
++  const [selected, setSelected] = useState<string>(todayIso());
++  const [viewYm, setViewYm] = useState<string>(todayIso().slice(0, 7));
++  const [showAll, setShowAll] = useState(false);
+ 
+   const load = useCallback(() => {
+     fetch("/api/admin/bookings")
+@@ -503,71 +507,315 @@ function BookingsTab() {
+     load();
+   }
+ 
++  /**
++   * Группировка по дате считается один раз на загрузку.
++   * Иначе при каждом переключении месяца пришлось бы фильтровать
++   * весь массив по 30 раз — по разу на ячейку сетки.
++   */
++  const byDate = useMemo(() => {
++    const map = new Map<string, BookingRecord[]>();
++    for (const b of items ?? []) {
++      const list = map.get(b.date) ?? [];
++      list.push(b);
++      map.set(b.date, list);
++    }
++    for (const list of map.values()) list.sort((a, b) => (a.time < b.time ? -1 : 1));
++    return map;
++  }, [items]);
++
+   if (!items) return <p className="text-muted">Загружаем…</p>;
+-  if (items.length === 0) return <p className="text-muted">Записей пока нет.</p>;
++
++  const dayItems = byDate.get(selected) ?? [];
++  const visible = showAll ? items : dayItems;
+ 
+   return (
+-    <div className="space-y-2">
+-      {items.map((b) => (
+-        <div key={b.id} className="rounded-control border border-line p-4">
+-          <div className="flex items-baseline justify-between gap-3">
+-            <p className="text-[15px]">
+-              {formatDateLong(b.date)}, {b.time}
+-            </p>
+-            <span
+-              className={cn(
+-                "shrink-0 rounded-pill px-2 py-0.5 text-xs",
+-                b.status === "confirmed" && "bg-accent text-accent-ink",
+-                b.status === "cancelled" && "bg-surface text-muted line-through",
+-                b.status === "new" && "border border-line",
+-              )}
+-            >
+-              {b.status === "new" ? "новая" : b.status === "confirmed" ? "подтверждена" : "отменена"}
+-            </span>
+-          </div>
++    <div className="space-y-4">
++      {preview && <PhotoViewer id={preview} onClose={() => setPreview(null)} />}
+ 
+-          <p className="mt-1 text-sm text-muted">
+-            {b.name} · <a href={`tel:${b.phone}`} className="text-ink underline underline-offset-2">{b.phone}</a> · {b.masterName}
+-          </p>
++      {/* ===== КАЛЕНДАРЬ ===== */}
++      <div className="overflow-hidden rounded-2xl border border-line bg-elevated">
++        <div className="flex items-center justify-between border-b border-line bg-surface/60 px-4 py-3">
++          <button
++            type="button"
++            onClick={() => setViewYm(shiftYm(viewYm, -1))}
++            aria-label="Предыдущий месяц"
++            className="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-colors hover:bg-line/60 active:bg-line"
++          >
++            ‹
++          </button>
+ 
+-          <ul className="mt-2 space-y-0.5 text-sm text-muted">
+-            {b.lines.map((l) => (
+-              <li key={`${l.serviceId}-${l.variantId}`}>
+-                {l.serviceTitle} — {l.variantLabel}, {formatDuration(l.durationMin)}
+-              </li>
+-            ))}
+-          </ul>
++          <button
++            type="button"
++            onClick={() => {
++              setViewYm(todayIso().slice(0, 7));
++              setSelected(todayIso());
++              setShowAll(false);
++            }}
++            className="text-[15px] font-medium capitalize"
++          >
++            {formatMonthLabel(viewYm)}
++          </button>
+ 
+-          <p className="mt-2 text-sm">
+-            {formatDuration(b.totalDurationMin)} · {formatPrice(b.totalPrice, b.currency)}
+-          </p>
++          <button
++            type="button"
++            onClick={() => setViewYm(shiftYm(viewYm, 1))}
++            aria-label="Следующий месяц"
++            className="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-colors hover:bg-line/60 active:bg-line"
++          >
++            ›
++          </button>
++        </div>
++
++        <div className="grid grid-cols-7 gap-px px-2 pb-1 pt-3">
++          {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
++            <div
++              key={d}
++              className="text-center text-[11px] font-medium uppercase tracking-wide text-muted"
++            >
++              {d}
++            </div>
++          ))}
++        </div>
+ 
+-          {b.comment && <p className="mt-2 text-sm text-muted">«{b.comment}»</p>}
++        <div className="grid grid-cols-7 gap-1.5 p-2 sm:p-3">
++          {monthCells(viewYm).map((cell, idx) => {
++            if (!cell) return <div key={`e-${idx}`} className="aspect-square" />;
+ 
+-          {b.status !== "cancelled" && (
+-            <div className="mt-3 flex gap-2">
+-              {b.status === "new" && (
+-                <button
+-                  onClick={() => setStatus(b.id, "confirmed")}
+-                  className="min-h-11 flex-1 rounded-control bg-accent text-sm text-accent-ink"
+-                >
+-                  Подтвердить
+-                </button>
+-              )}
++            const { iso, day } = cell;
++            const all = byDate.get(iso) ?? [];
++            // Отменённые точку не рисуют: для управляющей это свободный день
++            const active = all.filter((b) => b.status !== "cancelled");
++            const isSelected = selected === iso && !showAll;
++            const isToday = iso === todayIso();
++
++            return (
+               <button
+-                onClick={() => setStatus(b.id, "cancelled")}
+-                className="min-h-11 flex-1 rounded-control border border-line text-sm"
++                key={iso}
++                type="button"
++                onClick={() => {
++                  setSelected(iso);
++                  setShowAll(false);
++                }}
++                className={cn(
++                  "relative flex aspect-square flex-col items-center justify-center rounded-xl text-[15px] font-medium tabular-nums transition-all duration-150 active:scale-95",
++                  isSelected
++                    ? "bg-accent text-accent-ink shadow-md shadow-accent/25"
++                    : "bg-surface text-ink hover:bg-line/50",
++                  isToday && !isSelected && "ring-2 ring-accent/40",
++                )}
+               >
+-                Отменить
++                {day}
++
++                {active.length > 0 && (
++                  <span
++                    className={cn(
++                      "absolute bottom-1.5 h-1.5 w-1.5 rounded-full",
++                      isSelected ? "bg-accent-ink" : "bg-accent",
++                    )}
++                    aria-label={`${active.length} записей`}
++                  />
++                )}
+               </button>
+-            </div>
++            );
++          })}
++        </div>
++      </div>
++
++      {/* ===== ШАПКА СПИСКА ===== */}
++      <div className="flex items-baseline justify-between gap-3">
++        <p className="text-[15px]">
++          {showAll ? "Все записи" : formatDateLong(selected)}{" "}
++          <span className="text-muted">· {visible.length}</span>
++        </p>
++
++        <button
++          type="button"
++          onClick={() => setShowAll((v) => !v)}
++          className="shrink-0 text-sm text-muted underline underline-offset-4"
++        >
++          {showAll ? "По дням" : "Показать все"}
++        </button>
++      </div>
++
++      {/* ===== СПИСОК ===== */}
++      {visible.length === 0 ? (
++        <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
++          На этот день записей нет.
++        </p>
++      ) : (
++        <div className="space-y-2">
++          {visible.map((b) => (
++            <BookingCard
++              key={b.id}
++              booking={b}
++              showDate={showAll}
++              onStatus={setStatus}
++              onPreview={setPreview}
++            />
++          ))}
++        </div>
++      )}
++    </div>
++  );
++}
++
++function BookingCard({
++  booking: b,
++  showDate,
++  onStatus,
++  onPreview,
++}: {
++  booking: BookingRecord;
++  showDate: boolean;
++  onStatus: (id: string, status: BookingRecord["status"]) => void;
++  onPreview: (photoId: string) => void;
++}) {
++  return (
++    <div className="rounded-control border border-line p-4">
++      <div className="flex items-baseline justify-between gap-3">
++        <p className="text-[15px]">
++          {showDate ? `${formatDateLong(b.date)}, ${b.time}` : b.time}
++        </p>
++        <span
++          className={cn(
++            "shrink-0 rounded-pill px-2 py-0.5 text-xs",
++            b.status === "confirmed" && "bg-accent text-accent-ink",
++            b.status === "cancelled" && "bg-surface text-muted line-through",
++            b.status === "new" && "border border-line",
+           )}
++        >
++          {b.status === "new" ? "новая" : b.status === "confirmed" ? "подтверждена" : "отменена"}
++        </span>
++      </div>
++
++      <p className="mt-1 text-sm text-muted">
++        {b.name} ·{" "}
++        <a href={`tel:${b.phone}`} className="text-ink underline underline-offset-2">
++          {b.phone}
++        </a>{" "}
++        · {b.masterName}
++      </p>
++
++      <ul className="mt-2 space-y-0.5 text-sm text-muted">
++        {b.lines.map((l) => (
++          <li key={`${l.serviceId}-${l.variantId}`}>
++            {l.serviceTitle} — {l.variantLabel}, {formatDuration(l.durationMin)}
++          </li>
++        ))}
++      </ul>
++
++      <p className="mt-2 text-sm">
++        {formatDuration(b.totalDurationMin)} · {formatPrice(b.totalPrice, b.currency)}
++      </p>
++
++      {b.comment && <p className="mt-2 text-sm text-muted">«{b.comment}»</p>}
++
++      {/* Фото-референсы. Грузятся лениво: в списке из полусотни записей
++          иначе разом полетело бы полторы сотни запросов за картинками */}
++      {b.photoIds && b.photoIds.length > 0 && (
++        <div className="mt-3 flex flex-wrap gap-2">
++          {b.photoIds.map((pid) => (
++            <button
++              key={pid}
++              type="button"
++              onClick={() => onPreview(pid)}
++              className="h-20 w-20 overflow-hidden rounded-control border border-line bg-surface"
++            >
++              {/* eslint-disable-next-line @next/next/no-img-element */}
++              <img
++                src={`/api/admin/photos/${pid}`}
++                alt="Фото к записи"
++                loading="lazy"
++                className="h-full w-full object-cover"
++              />
++            </button>
++          ))}
+         </div>
+-      ))}
++      )}
++
++      {b.status !== "cancelled" && (
++        <div className="mt-3 flex gap-2">
++          {b.status === "new" && (
++            <button
++              onClick={() => onStatus(b.id, "confirmed")}
++              className="min-h-11 flex-1 rounded-control bg-accent text-sm text-accent-ink"
++            >
++              Подтвердить
++            </button>
++          )}
++          <button
++            onClick={() => onStatus(b.id, "cancelled")}
++            className="min-h-11 flex-1 rounded-control border border-line text-sm"
++          >
++            Отменить
++          </button>
++        </div>
++      )}
+     </div>
+   );
+ }
+ 
++/** Полноэкранный просмотр: миниатюры 80px мало, чтобы разглядеть оттенок */
++function PhotoViewer({ id, onClose }: { id: string; onClose: () => void }) {
++  return (
++    <div
++      onClick={onClose}
++      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
++    >
++      {/* eslint-disable-next-line @next/next/no-img-element */}
++      <img
++        src={`/api/admin/photos/${id}`}
++        alt="Фото к записи"
++        className="max-h-full max-w-full rounded-card object-contain"
++      />
++      <button
++        type="button"
++        aria-label="Закрыть"
++        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-pill bg-white/15 text-2xl text-white"
++      >
++        ×
++      </button>
++    </div>
++  );
++}
++
++/* --------------------------- Календарь: helpers -------------------------- */
++
++/** Локальная дата, а не UTC: toISOString ночью отдаёт вчерашний день */
++function todayIso() {
++  const d = new Date();
++  const tz = d.getTimezoneOffset() * 60000;
++  return new Date(d.getTime() - tz).toISOString().slice(0, 10);
++}
++
++function shiftYm(ym: string, delta: number) {
++  const [y, m] = ym.split("-").map(Number);
++  const d = new Date(y, m - 1 + delta, 1);
++  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
++}
++
++function formatMonthLabel(ym: string) {
++  const [y, m] = ym.split("-").map(Number);
++  return new Date(y, m - 1, 1).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
++}
++
++/**
++ * Сетка месяца с понедельника. В отличие от клиентской формы,
++ * прошлые дни здесь активны: управляющей нужна история визитов.
++ */
++function monthCells(ym: string): Array<{ iso: string; day: number } | null> {
++  const [year, month] = ym.split("-").map(Number);
++  const daysInMonth = new Date(year, month, 0).getDate();
++  const firstWeekday = (new Date(year, month - 1, 1).getDay() + 6) % 7;
++
++  const cells: Array<{ iso: string; day: number } | null> = Array(firstWeekday).fill(null);
++
++  for (let day = 1; day <= daysInMonth; day++) {
++    cells.push({ iso: `${ym}-${String(day).padStart(2, "0")}`, day });
++  }
++  return cells;
++}
++
+ /* ------------------------------ Мелочи ---------------------------------- */
+ 
+ function Card({
+diff --git a/src/app/api/admin/photos/[id]/route.ts b/src/app/api/admin/photos/[id]/route.ts
+new file mode 100644
+index 0000000..e847dd5
+--- /dev/null
++++ b/src/app/api/admin/photos/[id]/route.ts
+@@ -0,0 +1,42 @@
++import { NextResponse } from "next/server";
++import { cookies } from "next/headers";
++import { adminCookieName, verifyToken } from "@/lib/admin-auth";
++import { photoRepository } from "@/services/photo-repository";
++
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++
++/**
++ * Отдаёт одно фото записи. Под авторизацией: это личные снимки клиентов,
++ * и предсказуемый публичный URL сделал бы их доступными любому,
++ * кто угадает id брони.
++ */
++export async function GET(
++  _request: Request,
++  { params }: { params: Promise<{ id: string }> },
++) {
++  const jar = await cookies();
++  if (!verifyToken(jar.get(adminCookieName)?.value)) {
++    return new NextResponse("Not found", { status: 404 });
++  }
++
++  const { id } = await params;
++
++  try {
++    const photo = await photoRepository.get(id);
++    if (!photo) return new NextResponse("Not found", { status: 404 });
++
++    return new NextResponse(new Uint8Array(photo.bytes), {
++      headers: {
++        "Content-Type": photo.mime,
++        "Content-Length": String(photo.size),
++        // Приватный кэш: картинка не меняется, но в CDN ей не место
++        "Cache-Control": "private, max-age=3600",
++        "Content-Disposition": `inline; filename="${encodeURIComponent(photo.name)}"`,
++      },
++    });
++  } catch (e) {
++    console.error("[admin/photos]", e);
++    return new NextResponse("Error", { status: 500 });
++  }
++}
+diff --git a/src/lib/mongodb.ts b/src/lib/mongodb.ts
+index 30605d6..c40d4e1 100644
+--- a/src/lib/mongodb.ts
++++ b/src/lib/mongodb.ts
+@@ -47,6 +47,7 @@ export async function getDb(): Promise<Db> {
+ export const collections = {
+   bookings: "bookings",
+   settings: "settings",
++  photos: "booking_photos",
+ } as const;
+ 
+ let indexesReady: Promise<void> | null = null;
+diff --git a/src/services/booking-repository.ts b/src/services/booking-repository.ts
+index 7012eaa..8e5e8c5 100644
+--- a/src/services/booking-repository.ts
++++ b/src/services/booking-repository.ts
+@@ -1,4 +1,5 @@
+ import { collections, ensureIndexes, getDb, isMongoEnabled } from "@/lib/mongodb";
++import { photoRepository } from "@/services/photo-repository";
+ import type { BookingPayload, BookingRecord } from "@/types";
+ 
+ /**
+@@ -33,16 +34,21 @@ const mongoRepository: BookingRepository = {
+     const db = await getDb();
+     const record = newRecord(payload);
+ 
+-    // Фото не кладём в документ: 3 картинки по 400 КБ в base64 упрутся
+-    // в лимит документа 16 МБ и раздуют выдачу списка записей в админке.
+-    // Они уже ушли в Telegram; для продакшена — S3 и ссылка здесь.
++    // Фото уезжают в отдельную коллекцию: в документе записи остаются
++    // только их id. Иначе список записей в админке тянул бы мегабайты
++    // картинок на каждое открытие вкладки.
+     const { photos, ...rest } = record;
++    const photoIds = await photoRepository.saveMany(record.id, photos);
++
+     await db.collection(collections.bookings).insertOne({
+       ...rest,
++      photoIds,
+       photoCount: photos.length,
+     });
+ 
+-    return record;
++    // Возвращаем запись С фото: дальше её получает notifyBooking,
++    // и Telegram отправляет картинки из этого же объекта.
++    return { ...record, photoIds };
+   },
+ 
+   async listByDate(dateISO) {
+@@ -116,8 +122,10 @@ if (process.env.NODE_ENV !== "production") {
+ export const inMemoryRepository: BookingRepository = {
+   async create(payload) {
+     const record = newRecord(payload);
+-    memory.push(record);
+-    return record;
++    const photoIds = await photoRepository.saveMany(record.id, record.photos);
++    const stored = { ...record, photoIds };
++    memory.push(stored);
++    return stored;
+   },
+ 
+   async listByDate(dateISO) {
+diff --git a/src/services/notifications/telegram.ts b/src/services/notifications/telegram.ts
+index f9214ff..0efd4ee 100644
+--- a/src/services/notifications/telegram.ts
++++ b/src/services/notifications/telegram.ts
+@@ -161,6 +161,51 @@ function target() {
+     : { chat_id: CHAT_ID };
+ }
+ 
++/** data:image/jpeg;base64,... -> Blob для multipart-загрузки */
++function dataUrlToBlob(dataUrl: string) {
++  const comma = dataUrl.indexOf(",");
++  const mime = /^data:([^;]+);/.exec(dataUrl)?.[1] ?? "image/jpeg";
++  const bytes = Buffer.from(dataUrl.slice(comma + 1), "base64");
++  return new Blob([new Uint8Array(bytes)], { type: mime });
++}
++
++/**
++ * Фото уходят отдельным сообщением сразу за текстом записи.
++ *
++ * Одно фото альбомом слать нельзя — для него sendPhoto.
++ * Больше десяти Telegram в один альбом не берёт, поэтому режем.
++ * Файлы отправляются multipart-ом: JSON с base64 Telegram не принимает.
++ */
++async function sendPhotos(booking: BookingRecord) {
++  const photos = (booking.photos ?? []).slice(0, 10);
++  if (photos.length === 0) return;
++
++  const form = new FormData();
++  for (const [k, v] of Object.entries(target())) form.append(k, String(v));
++
++  const caption = `Фото к записи #${booking.id} — ${booking.name}`;
++  const single = photos.length === 1;
++
++  if (single) {
++    form.append("photo", dataUrlToBlob(photos[0].dataUrl), photos[0].name);
++    form.append("caption", caption);
++  } else {
++    form.append(
++      "media",
++      JSON.stringify(
++        photos.map((p, i) => ({
++          type: "photo",
++          media: `attach://file${i}`,
++          ...(i === 0 ? { caption } : {}),
++        })),
++      ),
++    );
++    photos.forEach((p, i) => form.append(`file${i}`, dataUrlToBlob(p.dataUrl), p.name));
++  }
++
++  await tgCall(single ? "sendPhoto" : "sendMediaGroup", form);
++}
++
+ export const telegramChannel: NotificationChannel = {
+   id: "telegram",
+ 
+@@ -174,6 +219,14 @@ export const telegramChannel: NotificationChannel = {
+       parse_mode: "HTML",
+       disable_web_page_preview: true,
+     });
++
++    // Фото — дополнение, а не суть заявки. Если Telegram не принял картинку,
++    // мастер уже получил имя, телефон и время: ронять из-за этого запись нельзя.
++    try {
++      await sendPhotos(booking);
++    } catch (e) {
++      console.error("[telegram] фото не доставлены", e);
++    }
+   },
+ };
+ 
+diff --git a/src/services/photo-repository.ts b/src/services/photo-repository.ts
+new file mode 100644
+index 0000000..4f6fb62
+--- /dev/null
++++ b/src/services/photo-repository.ts
+@@ -0,0 +1,106 @@
++import { Binary } from "mongodb";
++import { collections, getDb, isMongoEnabled } from "@/lib/mongodb";
++import type { BookingPhoto } from "@/types";
++
++export interface StoredPhoto {
++  id: string;
++  bookingId: string;
++  name: string;
++  mime: string;
++  size: number;
++  bytes: Buffer;
++}
++
++/**
++ * Фото хранятся отдельно от записи.
++ *
++ * Причина: три снимка по 400 КБ в base64 внутри документа брони съедают
++ * заметную часть лимита в 16 МБ, а главное — попадают в каждую выдачу
++ * списка записей в админке. Отдельная коллекция + ленивая загрузка
++ * по одному изображению решает и то, и другое.
++ */
++export interface PhotoRepository {
++  saveMany(bookingId: string, photos: BookingPhoto[]): Promise<string[]>;
++  get(id: string): Promise<StoredPhoto | null>;
++}
++
++/** data:image/jpeg;base64,... -> { mime, bytes } */
++export function decodeDataUrl(dataUrl: string) {
++  const comma = dataUrl.indexOf(",");
++  const mime = /^data:([^;]+);/.exec(dataUrl)?.[1] ?? "image/jpeg";
++  const bytes = Buffer.from(dataUrl.slice(comma + 1), "base64");
++  return { mime, bytes };
++}
++
++function photoId(bookingId: string, index: number) {
++  return `${bookingId}-${index}-${Math.random().toString(36).slice(2, 8)}`;
++}
++
++/* ------------------------------- MongoDB -------------------------------- */
++
++const mongoRepository: PhotoRepository = {
++  async saveMany(bookingId, photos) {
++    if (!photos.length) return [];
++
++    const db = await getDb();
++    const docs = photos.map((p, i) => {
++      const { mime, bytes } = decodeDataUrl(p.dataUrl);
++      return {
++        _id: photoId(bookingId, i),
++        bookingId,
++        name: p.name,
++        mime,
++        size: bytes.length,
++        // Binary вместо base64: на диске на треть компактнее
++        data: new Binary(bytes),
++        createdAt: new Date().toISOString(),
++      };
++    });
++
++    await db.collection(collections.photos).insertMany(docs as never[]);
++    await db.collection(collections.photos).createIndex({ bookingId: 1 });
++
++    return docs.map((d) => d._id);
++  },
++
++  async get(id) {
++    const db = await getDb();
++    const doc = await db.collection(collections.photos).findOne({ _id: id as never });
++    if (!doc) return null;
++
++    return {
++      id,
++      bookingId: doc.bookingId,
++      name: doc.name,
++      mime: doc.mime,
++      size: doc.size,
++      bytes: Buffer.from(doc.data.buffer),
++    };
++  },
++};
++
++/* -------------------------------- Память -------------------------------- */
++
++const globalForPhotos = globalThis as unknown as { photoMemory?: Map<string, StoredPhoto> };
++const memory = globalForPhotos.photoMemory ?? new Map<string, StoredPhoto>();
++
++if (process.env.NODE_ENV !== "production") globalForPhotos.photoMemory = memory;
++
++const inMemoryRepository: PhotoRepository = {
++  async saveMany(bookingId, photos) {
++    return photos.map((p, i) => {
++      const id = photoId(bookingId, i);
++      const { mime, bytes } = decodeDataUrl(p.dataUrl);
++      memory.set(id, { id, bookingId, name: p.name, mime, size: bytes.length, bytes });
++      return id;
++    });
++  },
++
++  async get(id) {
++    return memory.get(id) ?? null;
++  },
++};
++
++export const photoRepository: PhotoRepository = isMongoEnabled
++  ? mongoRepository
++  : inMemoryRepository;
+diff --git a/src/types/index.ts b/src/types/index.ts
+index 112a2a3..0583f4e 100644
+--- a/src/types/index.ts
++++ b/src/types/index.ts
+@@ -148,6 +148,11 @@ export interface BookingPayload {
+ 
+ export interface BookingRecord extends BookingPayload {
+   id: string;
++  /**
++   * id сохранённых фото. Сами файлы лежат отдельно, в документе записи
++   * их нет — иначе список записей в админке тянул бы мегабайты картинок.
++   */
++  photoIds?: string[];
+   createdAt: string;
+   status: "new" | "confirmed" | "cancelled";
+ }
