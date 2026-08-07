@@ -1,5 +1,6 @@
 import { bookingRepository } from "@/services/booking-repository";
 import { tgCall } from "@/services/notifications/telegram";
+import { sendEmailConfirmation } from "@/services/notifications/email"; // 🟢 ADDED
 import { NextResponse } from "next/server";
 
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
@@ -28,13 +29,18 @@ export async function PATCH(
       );
     }
 
-    // 2. Notify Admin Telegram channel about the reschedule
+    // 2. Notify Admin Telegram channel
     if (CHAT_ID) {
       await tgCall("sendMessage", {
         chat_id: CHAT_ID,
         text: `🔄 <b>Перенос записи #${updated.id}</b>\n\nClient: ${updated.name}\nNew Date: ${updated.date}\nNew Time: ${updated.time}`,
         parse_mode: "HTML",
       });
+    }
+
+    // 3. 🟢 Send updated confirmation email to client
+    if (updated.email) {
+      await sendEmailConfirmation(updated.email, updated);
     }
 
     return NextResponse.json({ ok: true, data: updated });

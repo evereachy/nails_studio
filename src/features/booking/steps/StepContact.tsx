@@ -42,7 +42,7 @@ export function StepContact() {
 
       <TextField
         id="booking-name"
-        label="Имя"
+        label="Имя *"
         placeholder="Анна"
         autoComplete="given-name"
         enterKeyHint="next"
@@ -53,17 +53,31 @@ export function StepContact() {
 
       <TextField
         id="booking-phone"
-        label="Телефон"
+        label="Телефон *"
         placeholder="+420 777 123 456"
-        // inputMode + type=tel — на мобиле открывается цифровая клавиатура
         type="tel"
         inputMode="tel"
         autoComplete="tel"
-        enterKeyHint="done"
+        enterKeyHint="next"
         value={draft.phone ?? ""}
         error={fieldErrors.phone}
-        hint="Позвоним, только чтобы подтвердить время"
+        hint="Для связи при подтверждении визита"
         onChange={(e) => patch({ phone: maskPhone(e.target.value) })}
+      />
+
+      {/* 🟢 Mandatory Email Input */}
+      <TextField
+        id="booking-email"
+        label="Email *"
+        placeholder="anna@example.com"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        enterKeyHint="done"
+        value={draft.email ?? ""}
+        error={fieldErrors.email}
+        hint="Отправим подтверждение и ссылку для переноса"
+        onChange={(e) => patch({ email: e.target.value })}
       />
 
       <TextAreaField
