@@ -1,4 +1,5 @@
 import { collections, ensureIndexes, getDb, isMongoEnabled } from "@/lib/mongodb";
+import { photoRepository } from "@/services/photo-repository";
 import type { BookingPayload, BookingRecord } from "@/types";
 
 /**
@@ -33,16 +34,20 @@ const mongoRepository: BookingRepository = {
     const db = await getDb();
     const record = newRecord(payload);
 
-    // Фото не кладём в документ: 3 картинки по 400 КБ в base64 упрутся
-    // в лимит документа 16 МБ и раздуют выдачу списка записей в админке.
-    // Они уже ушли в Telegram; для продакшена — S3 и ссылка здесь.
+    // Фото уезжают в отдельную коллекцию: в документе записи остаются
+    // только их id. Иначе список записей в админке тянул бы мегабайты
+    // картинок на каждое открытие вкладки.
     const { photos, ...rest } = record;
+    const photoIds = await photoRepository.saveMany(record.id, photos);
+
     await db.collection(collections.bookings).insertOne({
       ...rest,
       photoCount: photos ? photos.length : 0,
     });
 
-    return record;
+    // Возвращаем запись С фото: дальше её получает notifyBooking,
+    // и Telegram отправляет картинки из этого же объекта.
+    return { ...record, photoIds };
   },
 
   async listByDate(dateISO) {
@@ -116,8 +121,10 @@ if (process.env.NODE_ENV !== "production") {
 export const inMemoryRepository: BookingRepository = {
   async create(payload) {
     const record = newRecord(payload);
-    memory.push(record);
-    return record;
+    const photoIds = await photoRepository.saveMany(record.id, record.photos);
+    const stored = { ...record, photoIds };
+    memory.push(stored);
+    return stored;
   },
 
   async listByDate(dateISO) {

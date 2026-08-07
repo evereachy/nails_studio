@@ -148,6 +148,11 @@ export interface BookingPayload {
 
 export interface BookingRecord extends BookingPayload {
   id: string;
+  /**
+   * id сохранённых фото. Сами файлы лежат отдельно, в документе записи
+   * их нет — иначе список записей в админке тянул бы мегабайты картинок.
+   */
+  photoIds?: string[];
   createdAt: string;
   status: "new" | "confirmed" | "cancelled";
 }
