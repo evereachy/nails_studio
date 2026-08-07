@@ -39,7 +39,7 @@ const mongoRepository: BookingRepository = {
     const { photos, ...rest } = record;
     await db.collection(collections.bookings).insertOne({
       ...rest,
-      photoCount: photos.length,
+      photoCount: photos ? photos.length : 0,
     });
 
     return record;
@@ -49,7 +49,7 @@ const mongoRepository: BookingRepository = {
     const db = await getDb();
     return db
       .collection<BookingRecord>(collections.bookings)
-      .find({ date: dateISO }, { projection: { _id: 0 } })
+      .find({ date: dateISO, status: { $ne: "cancelled" } }, { projection: { _id: 0 } })
       .sort({ time: 1 })
       .toArray();
   },
@@ -104,7 +104,7 @@ const mongoRepository: BookingRepository = {
 
 /**
  * Next пересобирает модули на каждое сохранение файла, и обычный массив
- * обнулялся бы при каждом hot-reload. Приём автора: держим его в globalThis.
+ * обнулялся бы при каждом hot-reload. Держим его в globalThis.
  */
 const globalForBooking = globalThis as unknown as { bookingMemory?: BookingRecord[] };
 const memory: BookingRecord[] = globalForBooking.bookingMemory ?? [];

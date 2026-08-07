@@ -74,7 +74,10 @@ export async function POST(req: Request) {
       // User clicked "Reschedule"
       if (data.startsWith("reschedule_")) {
         const bookingId = data.replace("reschedule_", "");
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yourdomain.com";
+        const appUrl =
+          process.env.NEXT_PUBLIC_APP_URL ||
+          process.env.APP_URL ||
+          "https://4e79-2a00-102a-403f-ec0f-60db-adff-cd5b-6a02.ngrok-free.app"
 
         await tgCall("answerCallbackQuery", {
           callback_query_id: callback.id,
