@@ -4,6 +4,7 @@ import { MAX_ITEMS, exceedsWorkday, mastersForItems, summarize, toLines } from "
 import { getAvailability } from "@/services/availability";
 import { bookingRepository } from "@/services/booking-repository";
 import { notifyBooking } from "@/services/notifications";
+import { sendEmailConfirmation } from "@/services/notifications/email"; // 🟢 ADDED
 import { uploads } from "@/config/uploads";
 import type { ApiResult, BookingItem, BookingPhoto, BookingRecord } from "@/types";
 
@@ -16,15 +17,12 @@ interface Body {
   time?: string;
   name?: string;
   phone?: string;
+  email?: string; // 🟢 ADDED
   telegram?: string;
   comment?: string;
   photos?: BookingPhoto[];
 }
 
-/**
- * Фото приходят как data-URL внутри JSON. Клиент их уже сжал,
- * но доверять клиенту нельзя: проверяем формат, количество и вес заново.
- */
 function validatePhotos(photos: BookingPhoto[] | undefined): {
   clean: BookingPhoto[];
   error?: string;
@@ -70,11 +68,6 @@ export async function POST(request: Request) {
 
   const fields: Record<string, string> = {};
 
-  /**
-   * Цены и длительности НЕ берутся из запроса: клиент присылает только id
-   * услуги и варианта, всё остальное считается заново по каталогу.
-   * Иначе достаточно подменить тело запроса, чтобы записаться за бесценок.
-   */
   const rawItems = Array.isArray(body.items) ? body.items.slice(0, MAX_ITEMS) : [];
   const summary = summarize(rawItems);
 
@@ -90,12 +83,14 @@ export async function POST(request: Request) {
   if (!body.name || body.name.trim().length < 2) fields.name = "Введите имя";
   if (!body.phone || body.phone.replace(/\D/g, "").length < 9) fields.phone = "Проверьте номер";
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!body.email || !emailRegex.test(body.email.trim())) {
+    fields.email = "Введите корректный email адрес";
+  }
+
   const photos = validatePhotos(body.photos);
   if (photos.error) fields.photos = photos.error;
 
-  // График и занятость берём из того же источника, что и клиент,
-  // но заново: пока человек заполнял форму, управляющая могла закрыть день,
-  // а соседнюю бронь — поставить на это же окно.
   const masterId = body.masterId ?? null;
   const availability = await getAvailability(masterId);
 
@@ -145,14 +140,19 @@ export async function POST(request: Request) {
     time: body.time!,
     name: body.name!.trim(),
     phone: body.phone!.trim(),
+    email: body.email!.trim(),
     telegram: body.telegram?.trim() || undefined,
     comment: body.comment?.trim() || undefined,
     photos: photos.clean,
     source: "web",
   });
 
-  // Уведомления не роняют бронь при недоступности Telegram.
   const delivery = await notifyBooking(record);
+
+  // 🟢 Send Email Confirmation if customer email exists
+  if (record.email) {
+    await sendEmailConfirmation(record.email, record);
+  }
 
   return NextResponse.json<ApiResult<BookingRecord & { delivery: typeof delivery }>>({
     ok: true,
@@ -160,10 +160,6 @@ export async function POST(request: Request) {
   });
 }
 
-/**
- * GET /api/book?date=YYYY-MM-DD&items=haircut:medium,manicure:gel&masterId=anna
- * Свободные слоты под суммарную длительность выбранного набора.
- */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");

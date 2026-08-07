@@ -15,6 +15,7 @@ const emptyDraft: BookingDraft = {
   time: null,
   name: "",
   phone: "",
+  email: "", // 🟢 Initialized
   comment: "",
   photos: [],
 };
@@ -75,10 +76,11 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           setDraft({
             items: mappedItems,
             masterId: b.masterId ?? null,
-            date: null, // Reset date so user picks a new slot
-            time: null, // Reset time so user picks a new slot
+            date: null,
+            time: null,
             name: b.name ?? "",
             phone: b.phone ?? "",
+            email: b.email ?? "", // 🟢 Prefill from booking
             comment: b.comment ?? "",
             photos: b.photos ?? [],
           });

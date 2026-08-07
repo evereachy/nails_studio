@@ -103,14 +103,12 @@ export interface SelectionSummary {
 /** То, что заполняет пользователь */
 export interface BookingDraft {
   items: BookingItem[];
-  /** null = «любой мастер» */
   masterId: string | null;
-  /** дата в формате YYYY-MM-DD */
   date: string | null;
   time: TimeSlot | null;
   name: string;
   phone: string;
-  /** username в Telegram для уведомлений клиенту */
+  email: string; // 🟢 Required email field
   telegram?: string;
   comment?: string;
   photos: BookingPhoto[];
@@ -130,9 +128,7 @@ export interface BookingLine {
 export interface BookingPayload {
   lines: BookingLine[];
   masterId: string | null;
-  /** имя на момент записи — мастер может уволиться, история не поедет */
   masterName: string;
-  /** сумма длительностей — столько времени занимает визит */
   totalDurationMin: number;
   totalPrice: number;
   currency: string;
@@ -140,6 +136,7 @@ export interface BookingPayload {
   time: TimeSlot;
   name: string;
   phone: string;
+  email: string; // 🟢 Required email field
   telegram?: string;
   comment?: string;
   photos: BookingPhoto[];
@@ -148,10 +145,6 @@ export interface BookingPayload {
 
 export interface BookingRecord extends BookingPayload {
   id: string;
-  /**
-   * id сохранённых фото. Сами файлы лежат отдельно, в документе записи
-   * их нет — иначе список записей в админке тянул бы мегабайты картинок.
-   */
   photoIds?: string[];
   createdAt: string;
   status: "new" | "confirmed" | "cancelled";
