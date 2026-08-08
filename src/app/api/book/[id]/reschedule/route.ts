@@ -7,9 +7,12 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+
+    const { id } = await params;
+
     const { date, time } = await req.json();
 
     if (!date || !time) {
@@ -20,7 +23,7 @@ export async function PATCH(
     }
 
     // 1. Update in repository/DB
-    const updated = await bookingRepository.reschedule(params.id, date, time);
+    const updated = await bookingRepository.reschedule(id, date, time);
 
     if (!updated) {
       return NextResponse.json(

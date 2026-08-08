@@ -3,10 +3,13 @@ import { NextResponse } from "next/server";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const booking = await bookingRepository.getById(params.id);
+
+    const { id } = await params;
+
+    const booking = await bookingRepository.getById(id);
 
     if (!booking) {
       return NextResponse.json(

@@ -5,6 +5,7 @@ import { pageBlocks } from "@/config/blocks";
 import { AvailabilityProvider } from "@/features/booking/AvailabilityProvider";
 import { BookingProvider } from "@/features/booking/BookingProvider";
 import { BookingSheet } from "@/features/booking/BookingSheet";
+import { Suspense } from "react";
 
 /**
  * Страница ничего не верстает. Она только собирает блоки из конфига
@@ -13,21 +14,20 @@ import { BookingSheet } from "@/features/booking/BookingSheet";
 export default function HomePage() {
   return (
     <AvailabilityProvider>
-      <BookingProvider>
-      <Navbar />
-
-      <main>
-        {pageBlocks
-          .filter((b) => b.enabled)
-          .map(({ id, Component }) => (
-            <Component key={id} />
-          ))}
-      </main>
-
-      <Footer />
-      <StickyBookBar />
-      <BookingSheet />
-      </BookingProvider>
-    </AvailabilityProvider>
-  );
+      <Suspense fallback={null}>
+        <BookingProvider>
+          <Navbar />
+          <main>
+            {pageBlocks
+              .filter((b) => b.enabled)
+              .map(({ id, Component }) => (
+                <Component key={id} />
+              ))}
+          </main>
+          <Footer />
+          <StickyBookBar />
+          <BookingSheet />
+        </BookingProvider>
+      </Suspense>
+    </AvailabilityProvider>);
 }
