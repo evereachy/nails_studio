@@ -7,10 +7,12 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cancelledBooking = await bookingRepository.cancel(params.id);
+    const { id } = await params;   // ← await here
+
+    const cancelledBooking = await bookingRepository.cancel(id);
 
     if (!cancelledBooking) {
       return NextResponse.json(
@@ -56,7 +58,7 @@ export async function GET(
         </head>
         <body>
           <div class="card">
-            <h1>Запись #${params.id} отменена</h1>
+            <h1>Запись #${id} отменена</h1>
             <p>Ваша запись успешно отменена. Будем рады видеть вас снова!</p>
             <a href="/">На главную</a>
           </div>
