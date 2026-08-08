@@ -49,18 +49,18 @@ export function StepService() {
               onClick={() => setOpenId(expanded ? null : service.id)}
               disabled={locked}
               aria-expanded={expanded}
-              className="flex w-full items-center gap-3 px-4 py-4 text-left"
+              className="flex w-full items-center gap-3.5 px-4 py-[18px] text-left"
             >
               {/* Галочка слева — привычный признак множественного выбора */}
               <span
                 className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-[7px] border",
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] border",
                   picked ? "border-ink bg-accent text-accent-ink" : "border-line",
                 )}
                 aria-hidden
               >
                 {picked && (
-                  <svg viewBox="0 0 20 20" className="h-3 w-3">
+                  <svg viewBox="0 0 20 20" className="h-3.5 w-3.5">
                     <path
                       d="M4 10.5l4 4 8-9"
                       fill="none"
@@ -109,7 +109,7 @@ export function StepService() {
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                   className="overflow-hidden"
                 >
-                  <div className="space-y-1.5 px-3 pb-3">
+                  <div className="space-y-2 px-2.5 pb-2.5">
                     {service.variants.map((variant) => {
                       const active = isSelected(draft.items, service.id, variant.id);
                       return (
@@ -117,7 +117,7 @@ export function StepService() {
                           key={variant.id}
                           onClick={() => toggle({ serviceId: service.id, variantId: variant.id })}
                           className={cn(
-                            "flex min-h-12 w-full items-center justify-between gap-3 rounded-control border px-3.5 py-2.5 text-left",
+                            "flex min-h-14 w-full items-center justify-between gap-3 rounded-control border px-4 py-3 text-left",
                             "transition-colors duration-200 ease-soft",
                             active
                               ? "border-ink bg-accent text-accent-ink"

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Cormorant_Garamond } from "next/font/google";
+import { Inter, Cormorant_Garamond, Manrope, Fraunces } from "next/font/google";
 import { site } from "@/config/site";
+import { ALLOW_THEME_QUERY, THEME, themeNames } from "@/config/theme";
 import "./globals.css";
 
 const body = Inter({
@@ -9,12 +10,50 @@ const body = Inter({
   display: "swap",
 });
 
-const display = Cormorant_Garamond({
+/**
+ * По шрифту на тему.
+ *
+ * preload: false у всех трёх — и это не оплошность. next/font требует
+ * литералов, вычислить активную тему на этапе сборки он не даст,
+ * а три preload-ссылки в <head> заставили бы браузер тянуть все шрифты,
+ * включая два неиспользуемых. Без preload лишние @font-face остаются
+ * лежать мёртвым CSS: браузер скачивает шрифт только когда его семейство
+ * реально применено к элементу на странице.
+ */
+const couture = Cormorant_Garamond({
   subsets: ["latin", "cyrillic"],
-  weight: ["400", "500"],
-  variable: "--font-display",
+  weight: ["300", "400", "500"],
+  variable: "--font-couture",
   display: "swap",
+  preload: false,
 });
+
+const noir = Manrope({
+  subsets: ["latin", "cyrillic"],
+  weight: ["500", "600", "700"],
+  variable: "--font-noir",
+  display: "swap",
+  preload: false,
+});
+
+const bloom = Fraunces({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-bloom",
+  display: "swap",
+  preload: false,
+});
+
+const fontVars = [body.variable, couture.variable, noir.variable, bloom.variable].join(" ");
+
+/**
+ * Демонстрация клиенту без пересборки: ?theme=bloom в адресе.
+ * Скрипт ставит атрибут до отрисовки, поэтому мигания темы нет.
+ * Список тем зашит здесь же — чужое значение из адреса не применится.
+ */
+const themeQueryScript = `(function(){try{var t=new URLSearchParams(location.search).get("theme");if(t&&${JSON.stringify(
+  themeNames,
+)}.indexOf(t)>-1){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})()`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
@@ -30,7 +69,15 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  // Цвет строки браузера под тему — иначе на noir сверху белая полоса
+ themeColor:
+    THEME === "noir"
+      ? "#0b0b0c"
+      : THEME === "bloom"
+        ? "#fffafa"
+        : THEME === "cupertino"
+          ? "#fbfbfd"
+          : "#fdfcfa",
   width: "device-width",
   initialScale: 1,
   // maximumScale НЕ ограничиваем — иначе ломаем зум для слабовидящих
@@ -51,9 +98,12 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // data-theme переключает пресет оформления: "sand" | "noir" | "rose"
-    <html lang="ru" data-theme="noir" className={`${body.variable} ${display.variable}`}>
+    // Весь внешний вид сайта — одно слово в src/config/theme.ts
+    <html lang="ru" data-theme={THEME} className={fontVars}>
       <body>
+        {ALLOW_THEME_QUERY && (
+          <script dangerouslySetInnerHTML={{ __html: themeQueryScript }} />
+        )}
         {children}
         <script
           type="application/ld+json"

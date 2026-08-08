@@ -29,7 +29,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-24 pt-6">
+    <div className="admin-root mx-auto w-full max-w-3xl px-4 pb-24 pt-6">
       <header className="mb-6 flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl">Управление салоном</h1>
         <button

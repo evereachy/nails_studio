@@ -87,7 +87,7 @@ export function PhotoPicker({ label, hint, value, onChange, error }: Props) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="relative h-[88px] w-[88px] overflow-hidden rounded-control border border-line bg-surface"
+              className="relative h-24 w-24 overflow-hidden rounded-control border border-line bg-surface"
             >
               {/* обычный img: это локальный data-URL, next/image здесь не нужен */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -117,7 +117,7 @@ export function PhotoPicker({ label, hint, value, onChange, error }: Props) {
             onClick={() => inputRef.current?.click()}
             disabled={busy}
             className={cn(
-              "flex h-[88px] w-[88px] flex-col items-center justify-center gap-1.5 rounded-control",
+              "flex h-24 w-24 flex-col items-center justify-center gap-1.5 rounded-control",
               "border border-dashed border-line bg-elevated text-muted",
               "transition-colors duration-200 ease-soft active:bg-surface disabled:opacity-50",
             )}

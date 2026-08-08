@@ -38,6 +38,24 @@
 
   /* движение */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 300ms;
+  --dur-slow: 700ms;
+  --hover-lift: -2px;
+  --hover-scale: 1.02;
+
+  /* характер типографики — темы переопределяют */
+  --f-display-weight: 400;
+  --f-display-tracking: -0.02em;
+  --f-display-case: none;
+  --eyebrow-tracking: 0.18em;
+  --eyebrow-case: uppercase;
+
+  /* декоративный слой: темы включают своё */
+  --deco-opacity: 0;
+  --deco-blur: 0px;
+  --img-filter: none;
+  --img-filter-hover: none;
+  --border-width: 1px;
 }
 
 @media (min-width: 768px) {
@@ -47,40 +65,255 @@
   }
 }
 
-/* --- ГОТОВЫЕ ПРЕСЕТЫ ТЕМ ---
-   Включаются одним атрибутом на <html data-theme="...">.
-   Дают клиенту выбрать вид без правок кода. */
-[data-theme="sand"] {
-  --c-bg: #fbf8f4;
-  --c-surface: #f2ece3;
-  --c-line: #e2d9cb;
-  --c-ink: #2a241d;
-  --c-muted: #857b6c;
-  --c-accent: #8a6f52;
-  --c-accent-ink: #ffffff;
+/* ============================================================
+   ТРИ СТИЛЯ. Переключаются одним словом: <html data-theme="...">
+   Каждый меняет не только цвет, но и форму, шрифт, тени,
+   фоновый слой и характер анимаций.
+   ============================================================ */
+
+/* --- COUTURE: светлый редакционный ---------------------------
+   Много воздуха, волосяные линии вместо теней, тонкие засечки.
+   Ощущение печатного каталога. */
+[data-theme="couture"] {
+  --c-bg: #fdfcfa;
+  --c-surface: #f4f1ec;
+  --c-elevated: #ffffff;
+  --c-line: #ddd8d0;
+  --c-ink: #171614;
+  --c-muted: #7d7770;
+  --c-accent: #171614;
+  --c-accent-ink: #fdfcfa;
+
+  --r-card: 4px;
+  --r-control: 2px;
+  --border-width: 1px;
+
+  /* Тени почти нет: глубина строится линиями и пустотой */
+  --sh-soft: 0 1px 1px rgba(23, 22, 20, 0.03);
+  --sh-lift: 0 1px 2px rgba(23, 22, 20, 0.06), 0 12px 28px -22px rgba(23, 22, 20, 0.4);
+
+  --f-display: var(--font-couture), Georgia, serif;
+  --f-display-weight: 300;
+  --f-display-tracking: -0.01em;
+  --eyebrow-tracking: 0.28em;
+
+  --w-container: 1060px;
+  --gap-section: 96px;
+
+  --dur: 420ms;
+  --dur-slow: 900ms;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --hover-lift: 0px;
+  --hover-scale: 1;
+
+  --img-filter: grayscale(1) contrast(1.02);
+  --img-filter-hover: grayscale(0) contrast(1);
+  --deco-opacity: 0.5;
 }
 
+@media (min-width: 768px) {
+  [data-theme="couture"] {
+    --gap-section: 150px;
+  }
+}
+
+/* --- NOIR: тёмный глянец -------------------------------------
+   Крупный гротеск в верхнем регистре, свечение вместо теней. */
 [data-theme="noir"] {
-  --c-bg: #101010;
-  --c-surface: #191919;
-  --c-elevated: #1f1f1f;
-  --c-line: #2c2c2c;
-  --c-ink: #f2f0ec;
-  --c-muted: #9a948c;
-  --c-accent: #f2f0ec;
-  --c-accent-ink: #101010;
-  --sh-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -18px rgba(0, 0, 0, 0.8);
-  --sh-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 18px 40px -20px rgba(0, 0, 0, 0.9);
+  --c-bg: #0b0b0c;
+  --c-surface: #151517;
+  --c-elevated: #1b1b1e;
+  --c-line: #2a2a2e;
+  --c-ink: #f4f2ee;
+  --c-muted: #8f8a85;
+  --c-accent: #e8dcc8;
+  --c-accent-ink: #0b0b0c;
+
+  --r-card: 18px;
+  --r-control: 10px;
+
+  /* Свечение вместо падающей тени: на тёмном фоне тень не читается */
+  --sh-soft: 0 0 0 1px rgba(232, 220, 200, 0.06), 0 20px 50px -30px rgba(0, 0, 0, 0.9);
+  --sh-lift: 0 0 0 1px rgba(232, 220, 200, 0.14), 0 0 40px -12px rgba(232, 220, 200, 0.18),
+    0 24px 60px -30px rgba(0, 0, 0, 1);
+
+  --f-display: var(--font-noir), system-ui, sans-serif;
+  --f-display-weight: 600;
+  --f-display-tracking: -0.045em;
+  --eyebrow-tracking: 0.32em;
+
+  --w-container: 1180px;
+  --gap-section: 88px;
+
+  --dur: 260ms;
+  --dur-slow: 600ms;
+  --ease: cubic-bezier(0.3, 0, 0, 1);
+  --hover-lift: -3px;
+  --hover-scale: 1.015;
+
+  --img-filter: brightness(0.85) contrast(1.15) saturate(0.9);
+  --img-filter-hover: brightness(1) contrast(1.1) saturate(1);
+  --deco-opacity: 0.85;
 }
 
-[data-theme="rose"] {
-  --c-bg: #fffcfc;
-  --c-surface: #fbf0f0;
-  --c-line: #f0dede;
-  --c-ink: #241b1c;
-  --c-muted: #8a7476;
-  --c-accent: #9d5b60;
+@media (min-width: 768px) {
+  [data-theme="noir"] {
+    --gap-section: 132px;
+  }
+}
+
+/* --- BLOOM: мягкий розовый -----------------------------------
+   Округлые формы, живые тени, пружинистое движение. */
+[data-theme="bloom"] {
+  --c-bg: #fffafa;
+  --c-surface: #fdeef0;
+  --c-elevated: #ffffff;
+  --c-line: #f7dfe3;
+  --c-ink: #2e2023;
+  --c-muted: #96777c;
+  --c-accent: #c2646f;
   --c-accent-ink: #ffffff;
+
+  --r-card: 32px;
+  --r-control: 20px;
+
+  /* Тень цветная: серая на розовом выглядит грязной */
+  --sh-soft: 0 2px 6px rgba(194, 100, 111, 0.07), 0 14px 34px -18px rgba(194, 100, 111, 0.3);
+  --sh-lift: 0 4px 10px rgba(194, 100, 111, 0.1), 0 26px 50px -20px rgba(194, 100, 111, 0.45);
+
+  --f-display: var(--font-bloom), Georgia, serif;
+  --f-display-weight: 500;
+  --f-display-tracking: -0.015em;
+  --eyebrow-tracking: 0.16em;
+
+  --w-container: 1100px;
+  --gap-section: 76px;
+
+  --dur: 340ms;
+  --dur-slow: 700ms;
+  /* Лёгкий перелёт — отсюда «пружинистость» */
+  --ease: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --hover-lift: -4px;
+  --hover-scale: 1.03;
+
+  --img-filter: saturate(1.06);
+  --img-filter-hover: saturate(1.14);
+  --deco-opacity: 1;
+  --deco-blur: 90px;
+}
+
+/* --- CUPERTINO: правила характера ----------------------------
+   Ничего не переверстываем — только выравнивание, форма кнопок
+   и надзаголовки, которые в этой эстетике не капслочат. */
+
+/* Заголовки секций по центру, как на страницах продуктов Apple */
+[data-theme="cupertino"] main section > div > header {
+  text-align: center;
+  margin-inline: auto;
+}
+
+/* Надзаголовок здесь не разрядка мелким капсом, а синяя подпись */
+[data-theme="cupertino"] main .uppercase {
+  text-transform: none;
+  font-size: 0.95rem;
+  color: var(--c-accent);
+  font-weight: 500;
+}
+
+/* Крупный плотный заголовок — главный приём стиля */
+[data-theme="cupertino"] main h2 {
+  font-size: clamp(1.9rem, 6vw, 3.25rem);
+  line-height: 1.06;
+}
+
+[data-theme="cupertino"] h1 {
+  line-height: 1.05;
+}
+
+/* Кнопки-таблетки. Секцию записи исключаем: там поля и кнопки
+   должны оставаться одной формы, иначе форма выглядит разъехавшейся */
+[data-theme="cupertino"] main section:not(#booking) button,
+[data-theme="cupertino"] header button {
+  border-radius: 980px;
+}
+
+[data-theme="cupertino"] #booking button,
+[data-theme="cupertino"] [role="dialog"] button {
+  border-radius: var(--r-control);
+}
+
+/* Ссылки в навигации подчёркиванием не ездят — только цвет */
+[data-theme="cupertino"] nav a::after {
+  display: none;
+}
+/* --- CUPERTINO: минимализм в духе Apple ----------------------
+   Крупные мягкие скругления, почти белый фон, синий акцент,
+   тяжёлые плотные заголовки по центру. Дорого за счёт пустоты,
+   а не за счёт украшений. */
+[data-theme="cupertino"] {
+  --c-bg: #fbfbfd;
+  --c-surface: #f5f5f7;
+  --c-elevated: #ffffff;
+  --c-line: #e3e3e6;
+  --c-ink: #1d1d1f;
+  --c-muted: #6e6e73;
+  --c-accent: #0071e3;
+  --c-accent-ink: #ffffff;
+
+  --r-card: 28px;
+  --r-control: 12px;
+
+  /* Тень мягкая и почти незаметная: глубину даёт белая карточка
+     на сером фоне, а не затемнение под ней */
+  --sh-soft: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -16px rgba(0, 0, 0, 0.18);
+  --sh-lift: 0 2px 6px rgba(0, 0, 0, 0.05), 0 20px 44px -22px rgba(0, 0, 0, 0.3);
+
+  /* Своего шрифта нет: SF Pro закрыт лицензией, а Inter — его
+     ближайший бесплатный аналог, и он уже загружен как основной */
+  --f-display: var(--font-body), -apple-system, BlinkMacSystemFont, sans-serif;
+  --f-display-weight: 600;
+  --f-display-tracking: -0.035em;
+  --eyebrow-tracking: 0.01em;
+  --eyebrow-case: none;
+
+  --w-container: 1024px;
+  --gap-section: 90px;
+
+  --dur: 300ms;
+  --dur-slow: 600ms;
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --hover-lift: -1px;
+  --hover-scale: 1.01;
+
+  --img-filter: none;
+  --img-filter-hover: none;
+  --deco-opacity: 0;
+}
+
+@media (min-width: 768px) {
+  [data-theme="cupertino"] {
+    --gap-section: 128px;
+  }
+}
+
+@media (hover: hover) {
+  [data-theme="cupertino"] nav a:hover {
+    color: var(--c-accent);
+  }
+}
+
+/* Картинки чуть приближаются вместо смены фильтра */
+@media (hover: hover) {
+  [data-theme="cupertino"] main a:hover img,
+  [data-theme="cupertino"] main button:hover img {
+    transform: scale(var(--hover-scale));
+  }
+}
+
+@media (min-width: 768px) {
+  [data-theme="bloom"] {
+    --gap-section: 124px;
+  }
 }
 
 /* ============================================================
@@ -156,6 +389,218 @@
   }
 }
 
+
+/* ============================================================
+   СЛОЙ 3 — ХАРАКТЕР ТЕМЫ
+   Правила читают токены выше, поэтому один и тот же код
+   выглядит по-разному в каждой теме. Компоненты не меняются.
+   ============================================================ */
+
+/* --- Фоновый декоративный слой ---
+   Фиксирован и не перехватывает клики. В каждой теме свой. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--deco-opacity);
+  transition: opacity var(--dur-slow) var(--ease);
+}
+
+/* COUTURE: печатное зерно. Едва заметное, но убирает «цифровую» стерильность */
+[data-theme="couture"] body::before,
+body[data-theme="couture"]::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.32'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  animation: grain-shift 8s steps(6) infinite;
+}
+
+/* NOIR: два медленных световых пятна — экран «дышит» */
+[data-theme="noir"] body::before {
+  background:
+    radial-gradient(38% 30% at 18% 12%, rgba(232, 220, 200, 0.1), transparent 70%),
+    radial-gradient(32% 26% at 84% 78%, rgba(232, 220, 200, 0.07), transparent 70%);
+  animation: deco-drift 26s var(--ease) infinite alternate;
+}
+
+/* BLOOM: размытые цветные пятна */
+[data-theme="bloom"] body::before {
+  background:
+    radial-gradient(30% 26% at 12% 8%, rgba(247, 195, 205, 0.55), transparent 70%),
+    radial-gradient(26% 24% at 88% 32%, rgba(255, 224, 200, 0.5), transparent 70%),
+    radial-gradient(34% 28% at 50% 96%, rgba(240, 205, 225, 0.45), transparent 70%);
+  filter: blur(var(--deco-blur));
+  animation: deco-drift 22s var(--ease) infinite alternate;
+}
+
+@keyframes deco-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2%, -3%, 0) scale(1.08);
+  }
+}
+
+@keyframes grain-shift {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-2%, 1%); }
+  40% { transform: translate(1%, -2%); }
+  60% { transform: translate(-1%, 2%); }
+  80% { transform: translate(2%, 1%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Админка остаётся рабочим инструментом: декор там только мешает */
+body:has(.admin-root)::before {
+  display: none;
+}
+
+/* --- Типографика ---
+   Заголовки и надзаголовки берут характер из токенов темы. */
+h1,
+h2,
+h3 {
+  font-weight: var(--f-display-weight);
+  letter-spacing: var(--f-display-tracking);
+  text-transform: var(--f-display-case);
+}
+
+/* Перебивает инлайновый tracking у надзаголовков в блоках */
+[data-theme] .uppercase {
+  letter-spacing: var(--eyebrow-tracking);
+}
+
+/* NOIR: капслок только в заголовках секций, h1 остаётся крупным и обычным */
+[data-theme="noir"] main h2 {
+  text-transform: uppercase;
+  font-size: clamp(1.5rem, 5vw, 2.25rem);
+}
+
+/* COUTURE: тонкая линия под заголовком секции — приём печатной вёрстки */
+[data-theme="couture"] main section > div > header::after {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 1px;
+  margin-top: 28px;
+  background: var(--c-ink);
+  opacity: 0.35;
+}
+
+/* --- Изображения ---
+   Обработка задаётся темой: одна и та же фотография читается по-разному. */
+main img,
+footer img {
+  filter: var(--img-filter);
+  transition: filter var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease);
+}
+
+@media (hover: hover) {
+  main a:hover img,
+  main button:hover img,
+  main .group:hover img {
+    filter: var(--img-filter-hover);
+  }
+}
+
+/* --- Карточки ---
+   Подъём и рамка — из токенов, поэтому в couture ничего не «взлетает»,
+   а в bloom карточка заметно приподнимается. */
+@media (hover: hover) {
+  main .rounded-card {
+    transition:
+      transform var(--dur) var(--ease),
+      box-shadow var(--dur) var(--ease),
+      border-color var(--dur) var(--ease);
+  }
+
+  main .rounded-card:hover {
+    transform: translateY(var(--hover-lift));
+  }
+}
+
+/* Ссылки в навигации: линия выезжает слева */
+nav a {
+  position: relative;
+}
+
+nav a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  height: 1px;
+  width: 100%;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--dur) var(--ease);
+}
+
+@media (hover: hover) {
+  nav a:hover::after {
+    transform: scaleX(1);
+  }
+}
+
+/* --- Появление при скролле для блоков без Framer Motion --- */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+
+/* ============================================================
+   ГЕОМЕТРИЯ ФОРМЫ ЗАПИСИ
+   У формы свои скругления — крупнее, чем у сайта.
+   Причина простая: на странице круглая карточка это украшение,
+   а в форме — подсказка, что элемент нажимается. Чем мельче
+   элемент, тем важнее, чтобы он читался как кнопка.
+   ============================================================ */
+#booking,
+[role="dialog"] {
+  --r-control: 18px;
+  --r-card: 30px;
+}
+
+/* COUTURE намеренно прямоугольный: круглая форма посреди
+   печатной вёрстки выглядела бы вставкой из другого макета.
+   Скругляем, но сдержанно. */
+[data-theme="couture"] #booking,
+[data-theme="couture"] [role="dialog"] {
+  --r-control: 10px;
+  --r-card: 16px;
+}
+
+/* Строгость: внутри формы никаких цветных ховеров и подъёмов —
+   только смена границы. Взгляд должен идти по содержанию,
+   а не по реагирующим на курсор блокам. */
+#booking .rounded-card,
+[role="dialog"] .rounded-card {
+  box-shadow: none;
+}
+
+/* --- Форма записи остаётся нейтральной ---
+   Клиент заполняет её в спешке, и декоративные эффекты здесь
+   только отвлекают: ни фильтров на фото, ни подъёма карточек. */
+#booking img,
+[role="dialog"] img {
+  filter: none !important;
+}
+
+#booking .rounded-card:hover,
+[role="dialog"] .rounded-card:hover {
+  transform: 0.01ms translateY(0) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -163,5 +608,9 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  body::before {
+    animation: none !important;
   }
 }

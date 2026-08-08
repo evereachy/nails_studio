@@ -49,7 +49,7 @@ export function BookingFlow({ className }: { className?: string }) {
               <span
                 key={i}
                 className={cn(
-                  "h-[3px] flex-1 rounded-pill transition-colors duration-300",
+                  "h-1 flex-1 rounded-pill transition-colors duration-300",
                   i <= step ? "bg-accent" : "bg-line",
                 )}
               />
@@ -61,7 +61,7 @@ export function BookingFlow({ className }: { className?: string }) {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 gap-4 pb-4 text-sm text-ink">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={step}
@@ -82,8 +82,10 @@ export function BookingFlow({ className }: { className?: string }) {
         )}
       </div>
 
-      {/* Action Bar */}
-      <div className="safe-b sticky bottom-0 shrink-0 border-t border-line bg-bg/90 px-5 pt-3 backdrop-blur">
+      {/* Панель действий закреплена внизу — на мобиле кнопка всегда под большим пальцем */}
+      <div className="safe-b sticky bottom-0 shrink-0 border-t border-line bg-bg/95 px-5 pt-4 backdrop-blur">
+        {/* Итог по корзине виден на всех шагах: человек всегда знает,
+            сколько времени и денег стоит его набор процедур */}
         {step < 4 && summary.items.length > 0 && (
           <p className="mb-3 flex items-baseline justify-between gap-3 text-sm">
             <span className="truncate text-muted">
@@ -91,7 +93,7 @@ export function BookingFlow({ className }: { className?: string }) {
               {summary.items.length === 1 ? "процедура" : summary.items.length < 5 ? "процедуры" : "процедур"}{" "}
               · {formatDuration(summary.durationMin)}
             </span>
-            <span className="shrink-0 tabular-nums">
+            <span className="shrink-0 font-medium tabular-nums">
               {formatPrice(summary.price, summary.currency)}
             </span>
           </p>
