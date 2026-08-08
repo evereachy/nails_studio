@@ -61,19 +61,19 @@ export function Sheet({ open, onClose, title, children }: Props) {
               if (info.offset.y > 120 || info.velocity.y > 700) onClose();
             }}
             className={cn(
-              "relative flex max-h-[90dvh] w-full flex-col bg-bg",
-              "rounded-t-[28px] sm:max-w-lg sm:rounded-card",
-              "shadow-lift",
-            )}
+  "relative flex max-h-[90dvh] w-full flex-col overflow-hidden bg-bg",
+  "rounded-t-[32px] sm:max-w-lg sm:rounded-card",
+  "shadow-lift",
+)}
           >
             {/* «ручка» — подсказка, что шторку можно смахнуть */}
             <div className="flex shrink-0 justify-center pb-1 pt-3 sm:hidden">
-              <span className="h-1 w-10 rounded-pill bg-line" />
+              <span className="h-1.5 w-11 rounded-pill bg-line" />
             </div>
 
             {title && (
               <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-2 sm:pt-5">
-                <h3 className="font-display text-lg">{title}</h3>
+                <h3 className="font-display text-xl">{title}</h3>
                 <button
                   onClick={onClose}
                   aria-label="Закрыть"

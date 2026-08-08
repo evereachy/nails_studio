@@ -96,7 +96,7 @@ export function StepWhen() {
               type="button"
               onClick={() => pickMaster(null)}
               className={cn(
-                "min-h-11 rounded-control border px-4 text-[15px] transition-colors duration-200 ease-soft",
+                "min-h-12 rounded-pill border px-5 text-[15px] transition-colors duration-200 ease-soft",
                 draft.masterId === null
                   ? "border-ink bg-accent text-accent-ink"
                   : "border-line bg-elevated",
@@ -111,7 +111,7 @@ export function StepWhen() {
                 type="button"
                 onClick={() => pickMaster(m.id)}
                 className={cn(
-                  "min-h-11 rounded-control border px-4 text-left text-[15px]",
+                  "min-h-12 rounded-pill border px-5 text-left text-[15px]",
                   "transition-colors duration-200 ease-soft",
                   draft.masterId === m.id
                     ? "border-ink bg-accent text-accent-ink"
@@ -123,7 +123,7 @@ export function StepWhen() {
             ))}
           </div>
 
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2.5 text-xs text-muted">
             {draft.masterId
               ? "Показываем только его свободные часы"
               : "Свободное время любого подходящего мастера"}
@@ -137,7 +137,7 @@ export function StepWhen() {
 
         <div
           className={cn(
-            "rounded-2xl border border-line bg-elevated overflow-hidden",
+            "rounded-card border border-line bg-elevated overflow-hidden",
             // при смене мастера сетка перестраивается — гасим её, чтобы
             // не тапнули по дате, которая через миг станет недоступной
             loading && "pointer-events-none opacity-50",
@@ -212,7 +212,7 @@ export function StepWhen() {
                   disabled={disabled}
                   onClick={() => !disabled && patch({ date: iso, time: null })}
                   className={cn(
-                    "relative flex aspect-square items-center justify-center rounded-xl text-[15px] font-medium tabular-nums",
+                    "relative flex aspect-square items-center justify-center rounded-2xl text-[15px] font-medium tabular-nums",
                     "transition-all duration-150",
                     disabled
                       ? "text-muted/35 cursor-not-allowed"
@@ -272,7 +272,7 @@ export function StepWhen() {
                   disabled={!s.available}
                   onClick={() => patch({ time: s.time })}
                   className={cn(
-                    "min-h-11 rounded-control border text-[15px] tabular-nums",
+                    "min-h-12 rounded-control border text-[15px] tabular-nums",
                     "transition-colors duration-200 ease-soft",
                     active
                       ? "border-ink bg-accent text-accent-ink"

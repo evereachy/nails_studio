@@ -9,8 +9,13 @@ interface BaseProps {
   id: string;
 }
 
+/**
+ * Единая геометрия полей. py-4 вместо 3.5 даёт высоту 56px —
+ * столько же, сколько у главной кнопки, и форма перестаёт
+ * выглядеть собранной из разных наборов.
+ */
 const control =
-  "w-full rounded-control border bg-elevated px-4 py-3.5 text-ink placeholder:text-muted/60 " +
+  "w-full rounded-control border bg-elevated px-4 py-4 text-ink placeholder:text-muted/60 " +
   "transition-colors duration-200 ease-soft outline-none focus:border-ink";
 
 export function TextField({
