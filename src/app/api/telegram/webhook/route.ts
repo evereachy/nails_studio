@@ -1,5 +1,6 @@
 import { bookingRepository } from "@/services/booking-repository";
 import { buildClientMessage, getClientActionButtons, tgCall } from "@/services/notifications/telegram";
+import { sendEmailCancellation } from "@/services/notifications/email"; // 🟢 ADDED
 import { NextResponse } from "next/server";
 
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
@@ -8,9 +9,7 @@ export async function POST(req: Request) {
   try {
     const update = await req.json();
 
-    // -------------------------------------------------------------
-    // 1. Handle `/start booking_ID` (User tapped Start from Web)
-    // -------------------------------------------------------------
+    // 1. Handle `/start booking_ID`
     if (update.message?.text?.startsWith("/start")) {
       const chatId = update.message.chat.id;
       const fullText = update.message.text.trim();
@@ -34,9 +33,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // -------------------------------------------------------------
     // 2. Handle Button Clicks
-    // -------------------------------------------------------------
     if (update.callback_query) {
       const callback = update.callback_query;
       const data: string = callback.data ?? "";
@@ -68,13 +65,25 @@ export async function POST(req: Request) {
               parse_mode: "HTML",
             });
           }
+
+          // 🟢 Send Cancellation Email
+          if (cancelledBooking.email) {
+            await sendEmailCancellation(
+              cancelledBooking.email,
+              bookingId,
+              cancelledBooking.name
+            );
+          }
         }
       }
 
       // User clicked "Reschedule"
       if (data.startsWith("reschedule_")) {
         const bookingId = data.replace("reschedule_", "");
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yourdomain.com";
+        const appUrl =
+          process.env.NEXT_PUBLIC_APP_URL ||
+          process.env.APP_URL ||
+          "https://4e79-2a00-102a-403f-ec0f-60db-adff-cd5b-6a02.ngrok-free.app";
 
         await tgCall("answerCallbackQuery", {
           callback_query_id: callback.id,

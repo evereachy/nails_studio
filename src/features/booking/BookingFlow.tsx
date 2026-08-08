@@ -19,12 +19,8 @@ const titles: Record<BookingStep, string> = {
   4: "Готово",
 };
 
-/**
- * Оркестратор шагов. Сам по себе не решает, где он показан —
- * поэтому одинаково работает и в шторке на мобиле, и в секции на десктопе.
- */
 export function BookingFlow({ className }: { className?: string }) {
-  const { step, goTo, draft, submit, status, error, reset } = useBooking();
+  const { step, goTo, draft, submit, status, error, reset, rescheduleId } = useBooking();
   const { data } = useAvailability();
 
   const summary = summarize(draft.items);
@@ -38,6 +34,14 @@ export function BookingFlow({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
+      {/* ✏️ Reschedule Banner */}
+      {rescheduleId && step < 4 && (
+        <div className="mx-5 mb-3 flex items-center justify-between rounded-control bg-amber-500/10 px-4 py-2.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+          <span>✏️ Перенос записи <strong>#{rescheduleId}</strong></span>
+          <span className="opacity-75">Выберите новую дату</span>
+        </div>
+      )}
+
       {step < 4 && (
         <div className="shrink-0 px-5 pb-4">
           <div className="mb-3 flex gap-1.5" aria-hidden>
@@ -127,7 +131,9 @@ export function BookingFlow({ className }: { className?: string }) {
               loading={status === "sending"}
               onClick={() => (step === 3 ? submit() : goTo((step + 1) as BookingStep))}
             >
-              {step === 3 ? "Записаться" : "Дальше"}
+              {step === 3
+                ? (rescheduleId ? "Сохранить перенос" : "Записаться")
+                : "Дальше"}
             </Button>
           </div>
         )}
