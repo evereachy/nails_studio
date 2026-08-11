@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { getAvailability } from "@/services/availability";
+import { getAvailability } from "@/features/availability/availability-service";
 
 export const runtime = "nodejs";
-/** Расписание меняется в админке — кэшировать ответ нельзя */
+
+/**
+ * Dynamic route: availability changes in real time (via admin updates or new bookings),
+ * so responses must never be cached statically.
+ */
 export const dynamic = "force-dynamic";
 
-/** GET /api/availability?masterId=anna — график и занятость для выбранного мастера */
+/** GET /api/availability?masterId=anna — fetches schedule and slot availability for a given master */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const masterId = searchParams.get("masterId");
@@ -16,7 +20,7 @@ export async function GET(request: Request) {
   } catch (e) {
     console.error("[availability]", e);
     return NextResponse.json(
-      { ok: false, error: "Не удалось загрузить расписание" },
+      { ok: false, error: "Failed to load schedule" },
       { status: 503 },
     );
   }

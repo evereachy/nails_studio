@@ -1,15 +1,17 @@
-import { bookingRepository } from "@/services/booking-repository";
-import { buildClientMessage, getClientActionButtons, tgCall } from "@/services/notifications/telegram";
-import { sendEmailCancellation } from "@/services/notifications/email"; // 🟢 ADDED
 import { NextResponse } from "next/server";
+import { bookingRepository } from "@/features/booking/booking-repository";
+import { buildClientMessage, getClientActionButtons, tgCall } from "@/features/notifications/channels/telegram";
+import { sendEmailCancellation } from "@/features/notifications/channels/email";
 
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
+export const runtime = "nodejs";
+
+const ADMIN_CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
 
 export async function POST(req: Request) {
   try {
     const update = await req.json();
 
-    // 1. Handle `/start booking_ID`
+    // 1. Handle `/start booking_ID` deeplink from clients
     if (update.message?.text?.startsWith("/start")) {
       const chatId = update.message.chat.id;
       const fullText = update.message.text.trim();
@@ -28,62 +30,63 @@ export async function POST(req: Request) {
       } else {
         await tgCall("sendMessage", {
           chat_id: chatId,
-          text: `К сожалению, запись ${cleanBookingId ? `(#${cleanBookingId}) ` : ""}не найдена или была отменена.`,
+          text: `Unfortunately, booking ${cleanBookingId ? `(#${cleanBookingId}) ` : ""}was not found or has been cancelled.`,
         });
       }
     }
 
-    // 2. Handle Button Clicks
+    // 2. Handle Inline Keyboard Callbacks
     if (update.callback_query) {
       const callback = update.callback_query;
       const data: string = callback.data ?? "";
       const messageId = callback.message.message_id;
       const chatId = callback.message.chat.id;
 
-      // User clicked "Cancel"
+      // Client clicked "Cancel Booking"
       if (data.startsWith("cancel_")) {
         const bookingId = data.replace("cancel_", "");
         const cancelledBooking = await bookingRepository.cancel(bookingId);
 
         await tgCall("answerCallbackQuery", {
           callback_query_id: callback.id,
-          text: "Запись отменена",
+          text: "Booking cancelled",
         });
 
         if (cancelledBooking) {
           await tgCall("editMessageText", {
             chat_id: chatId,
             message_id: messageId,
-            text: `🚫 <b>Запись #${bookingId} отменена.</b>\n\nЕсли захотите записаться снова — будем рады видеть вас!`,
+            text: `🚫 <b>Booking #${bookingId} has been cancelled.</b>\n\nIf you would like to book again in the future, we would be happy to welcome you!`,
             parse_mode: "HTML",
           });
 
-          if (CHAT_ID) {
+          // Alert admin Telegram channel
+          if (ADMIN_CHAT_ID) {
             await tgCall("sendMessage", {
-              chat_id: CHAT_ID,
-              text: `⚠️ <b>Запись #${bookingId} отменена клиентом</b>\nИмя: ${cancelledBooking.name}\nТел: ${cancelledBooking.phone}`,
+              chat_id: ADMIN_CHAT_ID,
+              text: `⚠️ <b>Booking #${bookingId} cancelled by client</b>\nName: ${cancelledBooking.name}\nPhone: ${cancelledBooking.phone}`,
               parse_mode: "HTML",
             });
           }
 
-          // 🟢 Send Cancellation Email
+          // Send Cancellation Confirmation Email
           if (cancelledBooking.email) {
             await sendEmailCancellation(
               cancelledBooking.email,
               bookingId,
-              cancelledBooking.name
+              cancelledBooking.name,
             );
           }
         }
       }
 
-      // User clicked "Reschedule"
+      // Client clicked "Reschedule Booking"
       if (data.startsWith("reschedule_")) {
         const bookingId = data.replace("reschedule_", "");
         const appUrl =
           process.env.NEXT_PUBLIC_APP_URL ||
           process.env.APP_URL ||
-          "https://4e79-2a00-102a-403f-ec0f-60db-adff-cd5b-6a02.ngrok-free.app";
+          "http://localhost:3000";
 
         await tgCall("answerCallbackQuery", {
           callback_query_id: callback.id,
@@ -91,7 +94,7 @@ export async function POST(req: Request) {
 
         await tgCall("sendMessage", {
           chat_id: chatId,
-          text: `Чтобы выбрать новую дату и время для записи <b>#${bookingId}</b>, перейдите на сайт:\n\n${appUrl}?reschedule=${bookingId}`,
+          text: `To choose a new date and time for booking <b>#${bookingId}</b>, please visit our site:\n\n${appUrl}?reschedule=${bookingId}`,
           parse_mode: "HTML",
         });
       }
@@ -100,6 +103,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[telegram-webhook-error]", err);
+    // Always return 200 OK so Telegram doesn't endlessly retry failed webhook payloads
     return NextResponse.json({ ok: true });
   }
 }

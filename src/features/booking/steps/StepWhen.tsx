@@ -1,28 +1,33 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { cn } from "@/lib/cn";
-import { formatDuration, splitDate } from "@/lib/format";
-import { buildDays, buildSlots } from "@/lib/slots";
-import { exceedsWorkday, mastersForItems, summarize } from "@/lib/selection";
-import { useBooking } from "../BookingProvider";
-import { useAvailability } from "../AvailabilityProvider";
+import { cn } from "@/lib/utils/cn";
+import { formatDuration } from "@/lib/utils/format";
+import { exceedsWorkday, mastersForItems, summarize } from "@/features/booking/selection";
+import { buildDays, buildSlots } from "@/features/availability/slots";
+import { useAvailabilityStore } from "../store/useAvailabilityStore";
+import { useBookingStore } from "../store/useBookingStore";
 
 export function StepWhen() {
-  const { draft, patch, fieldErrors } = useBooking();
-  const { data, loading, error, load } = useAvailability();
+  const draft = useBookingStore((s) => s.draft);
+  const patch = useBookingStore((s) => s.patch);
+  const fieldErrors = useBookingStore((s) => s.fieldErrors);
 
-  // Итог по всем выбранным процедурам: длительность визита — это их сумма.
+  const data = useAvailabilityStore((s) => s.data);
+  const loading = useAvailabilityStore((s) => s.loading);
+  const error = useAvailabilityStore((s) => s.error);
+  const load = useAvailabilityStore((s) => s.load);
+
+  // Summary for selected procedures: total visit duration is the sum of all items.
   const summary = useMemo(() => summarize(draft.items), [draft.items]);
 
-  // Мастера, которые делают ВСЕ выбранные процедуры.
-  // Показывать остальных бессмысленно: человек выберет и упрётся в отказ.
+  // Masters capable of performing ALL selected procedures.
   const eligible = useMemo(
     () => (data ? mastersForItems(data.masters, draft.items) : []),
     [data, draft.items],
   );
 
-  // Дни, доступные для записи у выбранного мастера
+  // Available booking dates for the selected master
   const bookableDays = useMemo(
     () => (data ? buildDays(data).filter((d) => !d.closed) : []),
     [data],
@@ -33,7 +38,7 @@ export function StepWhen() {
     [bookableDays],
   );
 
-  // Unique months that contain at least one bookable day
+  // Unique months containing at least one bookable day
   const months = useMemo(() => {
     const map = new Map<string, true>();
     bookableDays.forEach((d) => map.set(d.iso.slice(0, 7), true));
@@ -43,8 +48,7 @@ export function StepWhen() {
   const [monthIndex, setMonthIndex] = useState(0);
   const currentYm = months[monthIndex] ?? months[0]; // "YYYY-MM"
 
-  // Слоты считаются от СУММАРНОЙ длительности:
-  // стрижка 90 мин + маникюр 120 мин = мастеру нужно свободное окно в 3.5 часа.
+  // Available time slots calculated from TOTAL duration requirement
   const slots = useMemo(
     () =>
       data && draft.date && summary.durationMin
@@ -53,31 +57,30 @@ export function StepWhen() {
     [data, draft.date, summary.durationMin],
   );
 
-  /** Смена мастера перезагружает расписание и сбрасывает время */
+  /** Changing the master reloads the schedule and resets selected time */
   const pickMaster = (masterId: string | null) => {
     patch({ masterId, time: null });
     load(masterId);
   };
 
   if (summary.items.length === 0) {
-    return <p className="text-muted">Сначала выберите хотя бы одну процедуру.</p>;
+    return <p className="text-muted">Please select at least one procedure first.</p>;
   }
 
   if (!data) {
     return (
       <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
-        {error ? `${error}. Обновите страницу или позвоните нам.` : "Загружаем расписание…"}
+        {error ? `${error}. Please refresh or contact us directly.` : "Loading schedule…"}
       </p>
     );
   }
 
-  // Набор из нескольких процедур может не влезть в смену.
-  // Без этой проверки человек увидел бы пустую сетку и решил, что всё занято.
+  // Guard clause if total duration exceeds a single workday shift
   if (exceedsWorkday(data, summary.durationMin)) {
     return (
       <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
-        Выбрано на {formatDuration(summary.durationMin)} — это дольше рабочего дня.
-        Вернитесь на шаг назад и уберите одну процедуру.
+        Selected total duration is {formatDuration(summary.durationMin)}, which exceeds a working day limit.
+        Please return to the previous step and remove one procedure.
       </p>
     );
   }
@@ -89,7 +92,7 @@ export function StepWhen() {
       {/* ===== MASTER ===== */}
       {eligible.length > 0 && (
         <div>
-          <p className="mb-3 text-sm text-muted">Мастер</p>
+          <p className="mb-3 text-sm text-muted">Master</p>
 
           <div className="rail">
             <button
@@ -102,7 +105,7 @@ export function StepWhen() {
                   : "border-line bg-elevated",
               )}
             >
-              Любой
+              Any Master
             </button>
 
             {eligible.map((m) => (
@@ -125,21 +128,20 @@ export function StepWhen() {
 
           <p className="mt-2.5 text-xs text-muted">
             {draft.masterId
-              ? "Показываем только его свободные часы"
-              : "Свободное время любого подходящего мастера"}
+              ? "Showing available slots for selected master only"
+              : "Showing available slots across all eligible masters"}
           </p>
         </div>
       )}
 
       {/* ===== DATE ===== */}
       <div>
-        <p className="mb-3 text-sm text-muted">Дата</p>
+        <p className="mb-3 text-sm text-muted">Date</p>
 
         <div
           className={cn(
             "rounded-card border border-line bg-elevated overflow-hidden",
-            // при смене мастера сетка перестраивается — гасим её, чтобы
-            // не тапнули по дате, которая через миг станет недоступной
+            // Disable calendar interaction during schedule reload
             loading && "pointer-events-none opacity-50",
           )}
         >
@@ -155,7 +157,7 @@ export function StepWhen() {
                   ? "text-muted/40 cursor-not-allowed"
                   : "hover:bg-line/60 active:bg-line",
               )}
-              aria-label="Предыдущий месяц"
+              aria-label="Previous month"
             >
               ‹
             </button>
@@ -176,7 +178,7 @@ export function StepWhen() {
                   ? "text-muted/40 cursor-not-allowed"
                   : "hover:bg-line/60 active:bg-line",
               )}
-              aria-label="Следующий месяц"
+              aria-label="Next month"
             >
               ›
             </button>
@@ -184,7 +186,7 @@ export function StepWhen() {
 
           {/* Weekday headers */}
           <div className="grid grid-cols-7 gap-px px-2 pt-3 pb-1">
-            {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
               <div
                 key={d}
                 className="text-center text-[11px] font-medium uppercase tracking-wide text-muted"
@@ -235,7 +237,7 @@ export function StepWhen() {
 
         {draft.date && (
           <p className="mt-3 text-center text-sm text-muted">
-            Выбрано:{" "}
+            Selected date:{" "}
             <span className="font-medium text-ink">
               {formatSelectedDate(draft.date)}
             </span>
@@ -246,20 +248,20 @@ export function StepWhen() {
       {/* ===== TIME ===== */}
       <div>
         <div className="mb-3 flex items-baseline justify-between gap-3">
-          <p className="text-sm text-muted">Время начала</p>
+          <p className="text-sm text-muted">Start time</p>
           <p className="text-xs text-muted">
-            Визит займёт {formatDuration(summary.durationMin)}
+            Total visit duration: {formatDuration(summary.durationMin)}
           </p>
         </div>
 
         {!draft.date ? (
           <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
-            Выберите дату — покажем свободные часы.
+            Select a date to view available time slots.
           </p>
         ) : free.length === 0 ? (
           <p className="rounded-control bg-surface px-4 py-5 text-sm text-muted">
-            На этот день нет свободного окна в {formatDuration(summary.durationMin)}{" "}
-            подряд. Посмотрите соседние даты или уберите одну процедуру.
+            No continuous {formatDuration(summary.durationMin)} window available on this date.
+            Please select another date or adjust selected services.
           </p>
         ) : (
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
@@ -296,34 +298,36 @@ export function StepWhen() {
   );
 }
 
-/* ---------- helpers ---------- */
+/* ---------- Helpers ---------- */
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
 function formatMonthLabel(ym: string) {
+  if (!ym) return "";
   const [y, m] = ym.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("ru-RU", {
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
   });
 }
 
 function formatSelectedDate(iso: string) {
-  return new Date(iso + "T12:00:00").toLocaleDateString("ru-RU", {
+  return new Date(iso + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "long",
     day: "numeric",
     month: "long",
   });
 }
 
-/** Classic full-month grid (Monday-first) */
+/** Classic full-month grid builder (Monday-first) */
 function buildFullMonthCells(
   ym: string,
   bookableSet: Set<string>,
 ) {
-  const [year, month] = ym.split("-").map(Number); // month is 1-based
+  if (!ym) return [];
+  const [year, month] = ym.split("-").map(Number);
   const firstOfMonth = new Date(year, month - 1, 1);
   const daysInMonth = new Date(year, month, 0).getDate();
 
@@ -335,15 +339,15 @@ function buildFullMonthCells(
     | { type: "day"; iso: string; day: number; disabled: boolean }
   > = [];
 
-  // Leading empty cells
+  // Padding cells before the first day of the month
   for (let i = 0; i < firstWeekday; i++) {
     cells.push({ type: "empty" });
   }
 
-  // Every day of the month
+  // Days of current month
   for (let day = 1; day <= daysInMonth; day++) {
     const iso = `${ym}-${String(day).padStart(2, "0")}`;
-    const disabled = !bookableSet.has(iso); // past + closed + beyond horizon
+    const disabled = !bookableSet.has(iso);
 
     cells.push({ type: "day", iso, day, disabled });
   }

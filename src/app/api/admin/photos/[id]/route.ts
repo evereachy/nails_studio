@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { adminCookieName, verifyToken } from "@/lib/admin-auth";
-import { photoRepository } from "@/services/photo-repository";
+import { adminCookieName, verifyToken } from "@/lib/auth/admin-auth";
+import { photoRepository } from "@/features/booking/photo-repository";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Отдаёт одно фото записи. Под авторизацией: это личные снимки клиентов,
- * и предсказуемый публичный URL сделал бы их доступными любому,
- * кто угадает id брони.
+ * Serves a single photo for a booking.
+ * Protected by authorization: these are client photos, and a predictable
+ * public URL would expose them to anyone guessing the booking ID.
  */
 export async function GET(
   _request: Request,
@@ -30,7 +30,7 @@ export async function GET(
       headers: {
         "Content-Type": photo.mime,
         "Content-Length": String(photo.size),
-        // Приватный кэш: картинка не меняется, но в CDN ей не место
+        // Private cache: image won't change, but shouldn't be stored in a CDN
         "Cache-Control": "private, max-age=3600",
         "Content-Disposition": `inline; filename="${encodeURIComponent(photo.name)}"`,
       },

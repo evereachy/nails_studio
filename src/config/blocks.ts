@@ -1,21 +1,21 @@
+import { About } from "@/features/landing/About";
+import { Booking } from "@/features/landing/Booking";
+import { Faq } from "@/features/landing/Faq";
+import { Gallery } from "@/features/landing/Gallery";
+import { Hero } from "@/features/landing/Hero";
+import { Reviews } from "@/features/landing/Reviews";
+import { Services } from "@/features/landing/Services";
 import type { ComponentType } from "react";
-import { Hero } from "@/blocks/Hero";
-import { About } from "@/blocks/About";
-import { Services } from "@/blocks/Services";
-import { Booking } from "@/blocks/Booking";
-import { Reviews } from "@/blocks/Reviews";
-import { Gallery } from "@/blocks/Gallery";
-import { Faq } from "@/blocks/Faq";
 
 export type BlockId = "hero" | "about" | "services" | "booking" | "reviews" | "gallery" | "faq";
 
-/**
- * СБОРКА СТРАНИЦЫ.
- * Порядок блоков и их включение — только здесь.
- * Клиент захотел галерею выше отзывов или убрать «О нас» — правится одна строка,
- * компоненты не трогаем.
- */
-export const pageBlocks: Array<{ id: BlockId; Component: ComponentType; enabled: boolean }> = [
+export interface BlockConfig {
+  id: BlockId;
+  Component: ComponentType;
+  enabled: boolean;
+}
+
+export const pageBlocks: BlockConfig[] = [
   { id: "hero", Component: Hero, enabled: false },
   { id: "about", Component: About, enabled: true },
   { id: "services", Component: Services, enabled: true },
@@ -23,4 +23,4 @@ export const pageBlocks: Array<{ id: BlockId; Component: ComponentType; enabled:
   { id: "reviews", Component: Reviews, enabled: true },
   { id: "gallery", Component: Gallery, enabled: true },
   { id: "faq", Component: Faq, enabled: true },
-];
+];;

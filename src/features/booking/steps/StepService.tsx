@@ -2,24 +2,27 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { minPrice, services } from "@/config/catalog";
-import { cn } from "@/lib/cn";
-import { formatDuration, formatPrice } from "@/lib/format";
-import { MAX_ITEMS, exceedsWorkday, isSelected, summarize } from "@/lib/selection";
-import { useBooking } from "../BookingProvider";
-import { useAvailability } from "../AvailabilityProvider";
+import { cn } from "@/lib/utils/cn";
+import { formatDuration, formatPrice } from "@/lib/utils/format";
+import { MAX_ITEMS, exceedsWorkday, isSelected, summarize } from "@/features/booking/selection";
+import { useBookingStore } from "../store/useBookingStore";
+import { useAvailabilityStore } from "../store/useAvailabilityStore";
+import { services } from "@/mock/catalog";
+import { minPrice } from "@/lib/catalog";
 
 /**
- * Шаг 1: выбор процедур.
+ * Step 1: Procedure selection.
  *
- * Услуга раскрывается в варианты по длительности — так человек сам говорит,
- * час ему нужен или три, и расписание не съезжает.
- * Выбрать можно несколько услуг: маникюр после стрижки — обычный сценарий,
- * и заставлять оформлять две отдельные записи бессмысленно.
+ * Each service expands into duration variants — this allows the user to specify
+ * whether they need 1 or 3 hours, keeping the schedule accurate.
+ * Multiple services can be selected in a single booking session.
  */
 export function StepService() {
-  const { draft, toggle, fieldErrors } = useBooking();
-  const { data } = useAvailability();
+  const draft = useBookingStore((s) => s.draft);
+  const toggle = useBookingStore((s) => s.toggle);
+  const fieldErrors = useBookingStore((s) => s.fieldErrors);
+
+  const data = useAvailabilityStore((s) => s.data);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const summary = summarize(draft.items);
@@ -51,7 +54,7 @@ export function StepService() {
               aria-expanded={expanded}
               className="flex w-full items-center gap-3.5 px-4 py-[18px] text-left"
             >
-              {/* Галочка слева — привычный признак множественного выбора */}
+              {/* Checkmark icon indicating multi-selection */}
               <span
                 className={cn(
                   "flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] border",
@@ -78,7 +81,7 @@ export function StepService() {
                 <span className="mt-0.5 block truncate text-sm text-muted">
                   {pickedVariant
                     ? `${pickedVariant.label} · ${formatDuration(pickedVariant.durationMin)}`
-                    : `${service.variants.length} варианта · от ${formatPrice(minPrice(service), service.currency)}`}
+                    : `${service.variants.length} options · from ${formatPrice(minPrice(service), service.currency)}`}
                 </span>
               </span>
 
@@ -151,14 +154,13 @@ export function StepService() {
 
       {full && (
         <p className="pt-1 text-sm text-muted">
-          Больше {MAX_ITEMS} процедур за визит не берём — иначе визит растянется на весь день.
+          Maximum of {MAX_ITEMS} procedures per visit to prevent overly long appointments.
         </p>
       )}
 
       {tooLong && (
         <p className="rounded-control bg-surface px-4 py-3 text-sm text-muted">
-          Всё вместе — {formatDuration(summary.durationMin)}. В один визит столько не помещается,
-          уберите что-нибудь или запишитесь на два дня.
+          Total time is {formatDuration(summary.durationMin)}. This exceeds a single workday limit — please remove an item or split across two days.
         </p>
       )}
 

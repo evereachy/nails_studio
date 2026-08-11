@@ -3,14 +3,18 @@
 import { uploads } from "@/config/uploads";
 import { TextAreaField, TextField } from "@/components/ui/Field";
 import { PhotoPicker } from "@/components/ui/PhotoPicker";
-import { formatDateLong, formatDuration, formatPrice, maskPhone } from "@/lib/format";
-import { summarize } from "@/lib/selection";
-import { useBooking } from "../BookingProvider";
-import { useAvailability } from "../AvailabilityProvider";
+import { formatDateLong, formatDuration, formatPrice, maskPhone } from "@/lib/utils/format";
+import { summarize } from "@/features/booking/selection";
+import { useBookingStore } from "../store/useBookingStore";
+import { useAvailabilityStore } from "../store/useAvailabilityStore";
 
 export function StepContact() {
-  const { draft, patch, fieldErrors } = useBooking();
-  const { data } = useAvailability();
+  const draft = useBookingStore((s) => s.draft);
+  const patch = useBookingStore((s) => s.patch);
+  const fieldErrors = useBookingStore((s) => s.fieldErrors);
+
+  const data = useAvailabilityStore((s) => s.data);
+
   const summary = summarize(draft.items);
   const master = data?.masters.find((m) => m.id === draft.masterId) ?? null;
 
@@ -65,7 +69,6 @@ export function StepContact() {
         onChange={(e) => patch({ phone: maskPhone(e.target.value) })}
       />
 
-      {/* 🟢 Mandatory Email Input */}
       <TextField
         id="booking-email"
         label="Email *"

@@ -1,32 +1,32 @@
-import { bookingRepository } from "@/services/booking-repository";
-import { sendEmailCancellation } from "@/services/notifications/email";
-import { tgCall } from "@/services/notifications/telegram";
 import { NextResponse } from "next/server";
+import { bookingRepository } from "@/features/booking/booking-repository";
+import { sendEmailCancellation } from "@/features/notifications/channels/email";
+import { tgCall } from "@/features/notifications/channels/telegram";
 
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;   // ← await here
+    const { id } = await params;
 
     const cancelledBooking = await bookingRepository.cancel(id);
 
     if (!cancelledBooking) {
       return NextResponse.json(
-        { ok: false, error: "Запись не найдена" },
-        { status: 404 }
+        { ok: false, error: "Booking not found" },
+        { status: 404 },
       );
     }
 
-    // 1. Send cancellation email confirmation
+    // 1. Send cancellation confirmation email to client
     if (cancelledBooking.email) {
       await sendEmailCancellation(
         cancelledBooking.email,
         cancelledBooking.id,
-        cancelledBooking.name
+        cancelledBooking.name,
       );
     }
 
@@ -34,7 +34,7 @@ export async function GET(
     if (CHAT_ID) {
       await tgCall("sendMessage", {
         chat_id: CHAT_ID,
-        text: `⚠️ <b>Запись #${cancelledBooking.id} отменена по ссылке из Email</b>\nИмя: ${cancelledBooking.name}\nТел: ${cancelledBooking.phone}`,
+        text: `⚠️ <b>Booking #${cancelledBooking.id} cancelled via email link</b>\nName: ${cancelledBooking.name}\nPhone: ${cancelledBooking.phone}`,
         parse_mode: "HTML",
       });
     }
@@ -43,11 +43,11 @@ export async function GET(
     return new NextResponse(
       `
       <!DOCTYPE html>
-      <html lang="ru">
+      <html lang="en">
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>Запись отменена</title>
+          <title>Booking Cancelled</title>
           <style>
             body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #fafafa; color: #111; }
             .card { background: #fff; border: 1px solid #e4e4e7; border-radius: 12px; padding: 32px; text-align: center; max-width: 400px; }
@@ -58,20 +58,20 @@ export async function GET(
         </head>
         <body>
           <div class="card">
-            <h1>Запись #${id} отменена</h1>
-            <p>Ваша запись успешно отменена. Будем рады видеть вас снова!</p>
-            <a href="/">На главную</a>
+            <h1>Booking #${id} Cancelled</h1>
+            <p>Your appointment has been successfully cancelled. We hope to see you again soon!</p>
+            <a href="/">Back to Home</a>
           </div>
         </body>
       </html>
       `,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      { headers: { "Content-Type": "text/html; charset=utf-8" } },
     );
   } catch (err) {
     console.error("[cancel-booking-error]", err);
     return NextResponse.json(
-      { ok: false, error: "Ошибка при отмене записи" },
-      { status: 500 }
+      { ok: false, error: "Failed to cancel booking" },
+      { status: 500 },
     );
   }
 }

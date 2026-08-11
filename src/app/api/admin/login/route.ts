@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import {
   adminCookieName,
   checkPassword,
@@ -6,12 +7,11 @@ import {
   isAdminConfigured,
   issueToken,
   verifyToken,
-} from "@/lib/admin-auth";
-import { cookies } from "next/headers";
+} from "@/lib/auth/admin-auth";
 
 export const runtime = "nodejs";
 
-/** Проверка активной сессии — админка спрашивает при загрузке */
+/** Active session check — admin panel queries this on load */
 export async function GET() {
   const jar = await cookies();
   return NextResponse.json({
@@ -24,7 +24,7 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!isAdminConfigured) {
     return NextResponse.json(
-      { ok: false, error: "ADMIN_PASSWORD не задан на сервере" },
+      { ok: false, error: "ADMIN_PASSWORD is not configured on the server" },
       { status: 503 },
     );
   }
@@ -32,9 +32,9 @@ export async function POST(request: Request) {
   const { password } = (await request.json().catch(() => ({}))) as { password?: string };
 
   if (!password || !checkPassword(password)) {
-    // Пауза против перебора: без неё пароль подбирается сотнями попыток в секунду
+    // Artificial delay to prevent brute-force attacks
     await new Promise((r) => setTimeout(r, 700));
-    return NextResponse.json({ ok: false, error: "Неверный пароль" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "Invalid password" }, { status: 401 });
   }
 
   const res = NextResponse.json({ ok: true });
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   return res;
 }
 
-/** Выход */
+/** Logout */
 export async function DELETE() {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(adminCookieName, "", { ...cookieOptions, maxAge: 0 });

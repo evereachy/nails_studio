@@ -1,24 +1,22 @@
-import { bookingRepository } from "@/services/booking-repository";
-import { tgCall } from "@/services/notifications/telegram";
-import { sendEmailConfirmation } from "@/services/notifications/email"; // 🟢 ADDED
 import { NextResponse } from "next/server";
+import { bookingRepository } from "@/features/booking/booking-repository";
+import { tgCall } from "@/features/notifications/channels/telegram";
+import { sendEmailConfirmation } from "@/features/notifications/channels/email";
 
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-
     const { id } = await params;
-
     const { date, time } = await req.json();
 
     if (!date || !time) {
       return NextResponse.json(
-        { ok: false, error: "Укажите новую дату и время" },
-        { status: 400 }
+        { ok: false, error: "Please provide both a new date and time" },
+        { status: 400 },
       );
     }
 
@@ -27,8 +25,8 @@ export async function PATCH(
 
     if (!updated) {
       return NextResponse.json(
-        { ok: false, error: "Запись не найдена" },
-        { status: 404 }
+        { ok: false, error: "Booking not found" },
+        { status: 404 },
       );
     }
 
@@ -36,12 +34,12 @@ export async function PATCH(
     if (CHAT_ID) {
       await tgCall("sendMessage", {
         chat_id: CHAT_ID,
-        text: `🔄 <b>Перенос записи #${updated.id}</b>\n\nClient: ${updated.name}\nNew Date: ${updated.date}\nNew Time: ${updated.time}`,
+        text: `🔄 <b>Booking Rescheduled #${updated.id}</b>\n\nClient: ${updated.name}\nNew Date: ${updated.date}\nNew Time: ${updated.time}`,
         parse_mode: "HTML",
       });
     }
 
-    // 3. 🟢 Send updated confirmation email to client
+    // 3. Send updated confirmation email to client
     if (updated.email) {
       await sendEmailConfirmation(updated.email, updated);
     }
@@ -50,8 +48,8 @@ export async function PATCH(
   } catch (err) {
     console.error("[reschedule-error]", err);
     return NextResponse.json(
-      { ok: false, error: "Не удалось перенести запись" },
-      { status: 500 }
+      { ok: false, error: "Failed to reschedule booking" },
+      { status: 500 },
     );
   }
 }

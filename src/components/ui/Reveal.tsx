@@ -2,18 +2,22 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 
-/** Появление при скролле. Одна точка входа — легко отключить анимации глобально. */
-export function Reveal({
-  children,
-  delay = 0,
-  className,
-}: {
+interface RevealProps {
   children: React.ReactNode;
   delay?: number;
   className?: string;
-}) {
+}
+
+/**
+ * Reveal Component — Scroll-triggered animation wrapper.
+ * Respects system preference for reduced motion.
+ */
+export function Reveal({ children, delay = 0, className }: RevealProps) {
   const reduced = useReducedMotion();
-  if (reduced) return <div className={className}>{children}</div>;
+
+  if (reduced) {
+    return <div className={className}>{children}</div>;
+  }
 
   return (
     <motion.div

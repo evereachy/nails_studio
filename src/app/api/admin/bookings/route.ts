@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { adminCookieName, verifyToken } from "@/lib/admin-auth";
-import { bookingRepository } from "@/services/booking-repository";
+import { adminCookieName, verifyToken } from "@/lib/auth/admin-auth";
+import { bookingRepository } from "@/features/booking/booking-repository";
 import type { BookingRecord } from "@/types";
 
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ export async function GET() {
   return NextResponse.json({ ok: true, data: await bookingRepository.listAll(200) });
 }
 
-/** Подтвердить или отменить запись */
+/** Confirm or cancel a booking */
 export async function PATCH(request: Request) {
   if (!(await guard())) return NextResponse.json({ ok: false }, { status: 401 });
 
@@ -27,11 +27,11 @@ export async function PATCH(request: Request) {
   };
 
   if (!id || !status || !["new", "confirmed", "cancelled"].includes(status)) {
-    return NextResponse.json({ ok: false, error: "Нужны id и status" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Missing id or status" }, { status: 400 });
   }
 
   const record = await bookingRepository.setStatus(id, status);
-  if (!record) return NextResponse.json({ ok: false, error: "Запись не найдена" }, { status: 404 });
+  if (!record) return NextResponse.json({ ok: false, error: "Booking not found" }, { status: 404 });
 
   return NextResponse.json({ ok: true, data: record });
 }
