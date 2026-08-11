@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { adminCookieName, verifyToken } from "@/lib/admin-auth";
-import { settingsRepository } from "@/services/settings-repository";
+import { adminCookieName, verifyToken } from "@/lib/auth/admin-auth";
+import { settingsRepository } from "@/features/settings/settings-repository";
 import type { Master, SalonSettings } from "@/types";
 
 export const runtime = "nodejs";
@@ -16,10 +16,9 @@ const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Санитайзер настроек.
- * Админка — тоже клиент, и из неё в базу не должно попасть ничего,
- * что потом уронит расчёт слотов: время закрытия раньше открытия,
- * шаг сетки в ноль или горизонт на десять лет.
+ * Settings sanitizer.
+ * Sanitizes input to prevent invalid states that break slot calculations:
+ * closing time before opening time, zero slot steps, or multi-year horizons.
  */
 function cleanSettings(input: SalonSettings): { value?: SalonSettings; error?: string } {
   const workingHours = [0, 1, 2, 3, 4, 5, 6].map((weekday) => {
@@ -27,10 +26,10 @@ function cleanSettings(input: SalonSettings): { value?: SalonSettings; error?: s
     if (!day?.open || !day?.close) return { weekday, open: null, close: null };
 
     if (!TIME.test(day.open) || !TIME.test(day.close)) {
-      throw new Error(`Некорректное время в дне ${weekday}`);
+      throw new Error(`Invalid time format on weekday ${weekday}`);
     }
     if (day.open >= day.close) {
-      throw new Error(`Закрытие раньше открытия в дне ${weekday}`);
+      throw new Error(`Closing time is before opening time on weekday ${weekday}`);
     }
     return { weekday, open: day.open, close: day.close };
   });
@@ -43,7 +42,7 @@ function cleanSettings(input: SalonSettings): { value?: SalonSettings; error?: s
   const horizonDays = Math.min(365, Math.max(1, Math.round(input.horizonDays || 60)));
 
   if (workingHours.every((d) => !d.open)) {
-    return { error: "Нельзя закрыть все дни недели — записаться будет некуда" };
+    return { error: "Cannot close all weekdays — no slots will be available" };
   }
 
   return { value: { workingHours, closedDates, slotStepMin, horizonDays } };
@@ -79,13 +78,13 @@ export async function PUT(request: Request) {
   } | null;
 
   if (!body?.settings) {
-    return NextResponse.json({ ok: false, error: "Нет данных" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Missing payload data" }, { status: 400 });
   }
 
   try {
     const { value, error } = cleanSettings(body.settings);
     if (error || !value) {
-      return NextResponse.json({ ok: false, error: error ?? "Ошибка" }, { status: 422 });
+      return NextResponse.json({ ok: false, error: error ?? "Validation error" }, { status: 422 });
     }
 
     const store = await settingsRepository.write({

@@ -3,8 +3,8 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploads } from "@/config/uploads";
-import { compressImage, formatBytes, isSupportedImage } from "@/lib/image";
-import { cn } from "@/lib/cn";
+import { compressImage, formatBytes, isSupportedImage } from "@/lib/utils/image";
+import { cn } from "@/lib/utils/cn";
 import type { BookingPhoto } from "@/types";
 
 interface Props {
@@ -16,15 +16,13 @@ interface Props {
 }
 
 /**
- * Выбор фото-референсов.
+ * Selection of photo references.
  *
- * Мобильные решения:
- *  - без атрибута capture: iOS сам покажет выбор «Медиатека / Снять фото»,
- *    а capture="environment" отрезал бы галерею — а именно оттуда обычно
- *    берут скриншот причёски из инстаграма;
- *  - сжатие идёт сразу после выбора, поэтому на медленной сети ждать нечего;
- *  - превью 88×88 в ленте: три фото помещаются на экран любого телефона;
- *  - кнопка удаления 32px в углу — палец попадает, но не мешает смотреть фото.
+ * Mobile design decisions:
+ *  - no capture attribute: iOS presents choice between Photo Library / Camera.
+ *  - compression happens immediately upon selection to avoid network lag later.
+ *  - 88x88 previews allow 3 photos side-by-side on almost any phone width.
+ *  - 32px hit-box for delete buttons avoids accidental misclicks.
  */
 export function PhotoPicker({ label, hint, value, onChange, error }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -47,35 +45,37 @@ export function PhotoPicker({ label, hint, value, onChange, error }: Props) {
     setBusy(true);
     const next: BookingPhoto[] = [];
 
-    for (const file of picked) {
-      if (!isSupportedImage(file)) {
-        setLocalError("Подойдут только изображения");
-        continue;
-      }
-      try {
-        const photo = await compressImage(file);
-        if (photo.size > uploads.maxBytes) {
-          setLocalError("Фото слишком тяжёлое даже после сжатия");
+    try {
+      for (const file of picked) {
+        if (!isSupportedImage(file)) {
+          setLocalError("Подойдут только изображения");
           continue;
         }
-        next.push(photo);
-      } catch {
-        setLocalError("Не удалось обработать фото. Попробуйте другое");
+        try {
+          const photo = await compressImage(file);
+          if (photo.size > uploads.maxBytes) {
+            setLocalError("Фото слишком тяжёлое даже после сжатия");
+            continue;
+          }
+          next.push(photo);
+        } catch {
+          setLocalError("Не удалось обработать фото. Попробуйте другое");
+        }
       }
+
+      if (next.length) onChange([...value, ...next]);
+    } finally {
+      setBusy(false);
+      // Always reset value to allow picking the exact same file again if deleted
+      if (inputRef.current) inputRef.current.value = "";
     }
-
-    setBusy(false);
-    if (next.length) onChange([...value, ...next]);
-
-    // сброс — иначе повторный выбор того же файла не вызовет change
-    if (inputRef.current) inputRef.current.value = "";
   }
 
   const shownError = error ?? localError;
 
   return (
     <div className="w-full">
-      <label className="mb-2 block text-sm text-muted">{label}</label>
+      <span className="mb-2 block text-sm text-muted">{label}</span>
 
       <div className="flex flex-wrap gap-2">
         <AnimatePresence initial={false}>
@@ -89,7 +89,7 @@ export function PhotoPicker({ label, hint, value, onChange, error }: Props) {
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               className="relative h-24 w-24 overflow-hidden rounded-control border border-line bg-surface"
             >
-              {/* обычный img: это локальный data-URL, next/image здесь не нужен */}
+              {/* Native img tag since these are local inline Data URLs */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photo.dataUrl} alt={photo.name} className="h-full w-full object-cover" />
 
@@ -116,6 +116,7 @@ export function PhotoPicker({ label, hint, value, onChange, error }: Props) {
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy}
+            aria-label="Добавить фото"
             className={cn(
               "flex h-24 w-24 flex-col items-center justify-center gap-1.5 rounded-control",
               "border border-dashed border-line bg-elevated text-muted",
@@ -153,11 +154,13 @@ export function PhotoPicker({ label, hint, value, onChange, error }: Props) {
         onChange={(e) => handleFiles(e.target.files)}
       />
 
-      {shownError ? (
-        <p className="mt-2 text-sm text-red-500">{shownError}</p>
-      ) : hint ? (
-        <p className="mt-2 text-sm text-muted">{hint}</p>
-      ) : null}
+      <div aria-live="polite">
+        {shownError ? (
+          <p className="mt-2 text-sm text-red-500">{shownError}</p>
+        ) : hint ? (
+          <p className="mt-2 text-sm text-muted">{hint}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

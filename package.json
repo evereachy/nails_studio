@@ -10,6 +10,7 @@
     "db:check": "node --env-file=.env.local scripts/db-check.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1106.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.15.0",
     "mongodb": "^7.5.0",
@@ -17,7 +18,8 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "resend": "^6.18.1",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

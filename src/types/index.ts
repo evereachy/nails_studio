@@ -1,16 +1,15 @@
-/** Единые типы домена. Меняем здесь — TypeScript сам подсветит все места. */
+/** Single domain source of truth for types. */
 
 export type ServiceCategory = "hair" | "nails" | "brows" | "care";
 
 /**
- * Вариант услуги. Стрижка на короткие волосы — 60 минут,
- * на длинные — 120: это одна услуга с разной длительностью и ценой.
- * Именно вариант, а не услуга, попадает в бронь.
+ * Service variant. Haircut for short hair (60 min) vs long hair (120 min):
+ * this represents one service with different duration and price options.
  */
 export interface ServiceVariant {
   id: string;
   label: string;
-  /** длительность в минутах — влияет на блокировку слотов */
+  /** Duration in minutes - directly impacts slot blocking */
   durationMin: number;
   price: number;
 }
@@ -22,7 +21,7 @@ export interface Service {
   currency: string;
   description?: string;
   image: string;
-  /** минимум один вариант */
+  /** At least one variant required */
   variants: ServiceVariant[];
 }
 
@@ -31,11 +30,11 @@ export interface Master {
   name: string;
   role: string;
   avatar?: string;
-  /** выключенный мастер не показывается в записи, но остаётся в истории */
+  /** Inactive masters are hidden from new bookings but preserved in history */
   active: boolean;
-  /** id услуг, которые мастер делает. Пустой массив = делает всё */
+  /** IDs of services this master performs. Empty array = performs all services */
   serviceIds: string[];
-  /** личные выходные: 0 = воскресенье ... 6 = суббота */
+  /** Personal days off: 0 = Sunday, 1 = Monday ... 6 = Saturday */
   weekdaysOff: number[];
 }
 
@@ -51,7 +50,7 @@ export interface Review {
 export interface FaqItem {
   id: string;
   question: string;
-  answer: string;
+  answer: React.ReactNode;
 }
 
 export interface GalleryItem {
@@ -60,39 +59,39 @@ export interface GalleryItem {
   alt: string;
 }
 
-/** Фото-референс, приложенный к записи. dataUrl уже сжат на клиенте. */
+/** Photo reference attached to a booking. dataUrl is pre-compressed on the client. */
 export interface BookingPhoto {
   id: string;
   name: string;
   /** data:image/jpeg;base64,... */
   dataUrl: string;
-  /** размер после сжатия, байты */
+  /** Post-compression file size in bytes */
   size: number;
 }
 
-/** Слот времени в формате "HH:mm" */
+/** Time slot format "HH:mm" */
 export type TimeSlot = string;
 
 export interface SlotState {
   time: TimeSlot;
   available: boolean;
-  /** причина недоступности — для тултипов и отладки */
+  /** Reason for unavailability — used for debugging & UI tooltips */
   reason?: "booked" | "closed" | "past" | "duration";
 }
 
-/** Одна позиция в брони: услуга + выбранный вариант */
+/** Single selected service item in booking selection */
 export interface BookingItem {
   serviceId: string;
   variantId: string;
 }
 
-/** Позиция вместе с раскрытыми данными — результат resolve */
+/** Resolved service item with populated domain details */
 export interface ResolvedItem {
   service: Service;
   variant: ServiceVariant;
 }
 
-/** Итог по корзине услуг */
+/** Summary calculation for selected cart items */
 export interface SelectionSummary {
   items: ResolvedItem[];
   durationMin: number;
@@ -100,7 +99,7 @@ export interface SelectionSummary {
   currency: string;
 }
 
-/** То, что заполняет пользователь */
+/** Draft state populated by the client form */
 export interface BookingDraft {
   items: BookingItem[];
   masterId: string | null;
@@ -108,13 +107,13 @@ export interface BookingDraft {
   time: TimeSlot | null;
   name: string;
   phone: string;
-  email: string; // 🟢 Required email field
+  email: string;
   telegram?: string;
   comment?: string;
   photos: BookingPhoto[];
 }
 
-/** Позиция в том виде, в каком она уходит на сервер и в чат */
+/** Item line formatted for API payload and notification channels */
 export interface BookingLine {
   serviceId: string;
   variantId: string;
@@ -124,7 +123,7 @@ export interface BookingLine {
   price: number;
 }
 
-/** То, что уходит на сервер */
+/** Payload dispatched to backend */
 export interface BookingPayload {
   lines: BookingLine[];
   masterId: string | null;
@@ -136,7 +135,7 @@ export interface BookingPayload {
   time: TimeSlot;
   name: string;
   phone: string;
-  email: string; // 🟢 Required email field
+  email: string;
   telegram?: string;
   comment?: string;
   photos: BookingPhoto[];
@@ -154,36 +153,33 @@ export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; fields?: Record<string, string> };
 
-/** Интервал работы салона в конкретный день недели */
+/** Salon working hours interval for a specific weekday */
 export interface WorkingDay {
-  /** 0 = воскресенье ... 6 = суббота */
+  /** 0 = Sunday ... 6 = Saturday */
   weekday: number;
   open: TimeSlot | null;
   close: TimeSlot | null;
 }
 
-/**
- * Настройки салона. Раньше были константами в коде,
- * теперь редактируются управляющей через админку и лежат в хранилище.
- */
+/** Salon operational settings stored in DB/repository */
 export interface SalonSettings {
   workingHours: WorkingDay[];
-  /** разовые выходные: праздники, отпуск. YYYY-MM-DD */
+  /** Specific closure dates (holidays, special off-days): YYYY-MM-DD */
   closedDates: string[];
-  /** шаг сетки слотов, минут */
+  /** Slot step interval in minutes */
   slotStepMin: number;
-  /** на сколько дней вперёд открыта запись */
+  /** Days ahead booking window is open */
   horizonDays: number;
 }
 
-/** Всё, что нужно клиенту, чтобы посчитать слоты локально */
+/** Context required to compute available slots on the client/server */
 export interface ScheduleContext {
   settings: SalonSettings;
-  /** уже разрешённая занятость: дата -> [[время начала, длительность]] */
+  /** Resolved busy intervals: Date string (YYYY-MM-DD) -> [[startTime, durationMinutes]] */
   busy: Record<string, Array<[TimeSlot, number]>>;
 }
 
-/** Ответ /api/availability */
+/** Response shape for /beauty/api/availability */
 export interface AvailabilityResponse extends ScheduleContext {
   masters: Master[];
   masterId: string | null;

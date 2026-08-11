@@ -1,22 +1,19 @@
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils/cn";
 import { Container } from "./Container";
 
-interface Props {
+interface SectionProps {
   id?: string;
   eyebrow?: string;
   title?: string;
   lead?: string;
   className?: string;
-  /** контент во всю ширину — для лент, вылезающих за края */
-  bleed?: boolean;
   children: React.ReactNode;
 }
 
 /**
- * Единая обёртка секции: отступы, заголовок, ширина.
- * Все блоки используют её — значит ритм страницы правится в одном файле.
+ * Unified section wrapper to manage padding, typography rhythm, and width across all blocks.
  */
-export function Section({ id, eyebrow, title, lead, className, children }: Props) {
+export function Section({ id, eyebrow, title, lead, className, children }: SectionProps) {
   return (
     <section id={id} className={cn("py-[var(--gap-section)]", className)}>
       <Container>

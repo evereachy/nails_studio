@@ -1,21 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { services } from "@/config/catalog";
 import { weekdayNames, weekdayOrder } from "@/config/schedule";
-import { cn } from "@/lib/cn";
-import { formatDateLong, formatDuration, formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils/cn";
+import { formatDateLong, formatDuration, formatPrice } from "@/lib/utils/format";
 import type { BookingRecord, Master, SalonSettings } from "@/types";
+import { services } from "@/mock/catalog";
 
 type Tab = "schedule" | "masters" | "bookings";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>("schedule");
 
   useEffect(() => {
-    fetch("/api/admin/login")
-      .then((r) => r.json())
+    fetch(`${API_BASE}/api/admin/login`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((j) => setAuthorized(Boolean(j.authorized)))
       .catch(() => setAuthorized(false));
   }, []);
@@ -34,16 +36,19 @@ export default function AdminPage() {
         <h1 className="font-display text-2xl">Управление салоном</h1>
         <button
           onClick={async () => {
-            await fetch("/api/admin/login", { method: "DELETE" });
+            await fetch(`${API_BASE}/api/admin/login`, {
+              method: "DELETE",
+              credentials: "include",
+            });
             setAuthorized(false);
           }}
-          className="min-h-10 rounded-control border border-line px-3 text-sm text-muted"
+          className="min-h-10 rounded-control border border-line px-3 text-sm text-muted hover:text-ink transition-colors"
         >
           Выйти
         </button>
       </header>
 
-      {/* Вкладки лентой — на телефоне помещаются в одну строку */}
+      {/* Вкладки лентой */}
       <div className="rail mb-6">
         {(
           [
@@ -78,24 +83,34 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [busy, setBusy] = useState(false);
 
   async function submit() {
+    if (!password || busy) return;
     setBusy(true);
     setError(null);
 
-    const res = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    const json = await res.json();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password }),
+      });
+      const json = await res.json();
 
-    setBusy(false);
-    if (json.ok) onSuccess();
-    else setError(json.error ?? "Не удалось войти");
+      if (res.ok && json.ok) {
+        onSuccess();
+      } else {
+        setError(json.error ?? "Не удалось войти");
+      }
+    } catch {
+      setError("Ошибка сети при входе");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <Centered>
-      <div className="w-full max-w-sm rounded-card border border-line bg-elevated p-6">
+      <div className="w-full max-w-sm rounded-card border border-line bg-elevated p-6 shadow-sm">
         <h1 className="mb-1 font-display text-xl">Вход для управляющей</h1>
         <p className="mb-5 text-sm text-muted">График, мастера и записи салона.</p>
 
@@ -115,7 +130,7 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
         <button
           onClick={submit}
           disabled={busy || password.length === 0}
-          className="mt-4 min-h-12 w-full rounded-control bg-accent font-medium text-accent-ink disabled:opacity-40"
+          className="mt-4 min-h-12 w-full rounded-control bg-accent font-medium text-accent-ink transition-opacity disabled:opacity-40"
         >
           {busy ? "Проверяем…" : "Войти"}
         </button>
@@ -134,14 +149,15 @@ function SettingsTab({ tab }: { tab: Tab }) {
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    fetch("/api/admin/settings")
-      .then((r) => r.json())
+    fetch(`${API_BASE}/api/admin/settings`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((j) => {
         if (j.ok) {
           setSettings(j.data.settings);
           setMasters(j.data.masters);
         }
-      });
+      })
+      .catch(() => setError("Не удалось загрузить настройки"));
   }, []);
 
   const save = useCallback(async () => {
@@ -149,27 +165,33 @@ function SettingsTab({ tab }: { tab: Tab }) {
     setStatus("Сохраняем…");
     setError(null);
 
-    const res = await fetch("/api/admin/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settings, masters }),
-    });
-    const json = await res.json();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ settings, masters }),
+      });
+      const json = await res.json();
 
-    if (json.ok) {
-      setStatus("Сохранено");
-      setDirty(false);
-      setTimeout(() => setStatus(null), 2500);
-    } else {
+      if (res.ok && json.ok) {
+        setStatus("Сохранено");
+        setDirty(false);
+        setTimeout(() => setStatus(null), 2500);
+      } else {
+        setStatus(null);
+        setError(json.error ?? "Не удалось сохранить");
+      }
+    } catch {
       setStatus(null);
-      setError(json.error ?? "Не удалось сохранить");
+      setError("Ошибка сети при сохранении");
     }
   }, [settings, masters]);
 
   if (!settings) return <p className="text-muted">Загружаем…</p>;
 
   const patch = (p: Partial<SalonSettings>) => {
-    setSettings({ ...settings, ...p });
+    setSettings((prev) => (prev ? { ...prev, ...p } : null));
     setDirty(true);
   };
 
@@ -273,7 +295,7 @@ function SettingsTab({ tab }: { tab: Tab }) {
                   onClick={() =>
                     patch({ closedDates: settings.closedDates.filter((x) => x !== d) })
                   }
-                  className="flex min-h-10 items-center gap-2 rounded-pill border border-line px-3 text-sm"
+                  className="flex min-h-10 items-center gap-2 rounded-pill border border-line px-3 text-sm hover:bg-surface transition-colors"
                 >
                   {formatDateLong(d)}
                   <span className="text-muted">×</span>
@@ -356,23 +378,27 @@ function SettingsTab({ tab }: { tab: Tab }) {
                 },
               ])
             }
-            className="mt-3 min-h-12 w-full rounded-control border border-dashed border-line text-[15px] text-muted"
+            className="mt-3 min-h-12 w-full rounded-control border border-dashed border-line text-[15px] text-muted hover:border-ink hover:text-ink transition-colors"
           >
             + Добавить мастера
           </button>
         </Card>
       )}
 
-      {/* Кнопка сохранения закреплена внизу: форма длинная, скроллить наверх неудобно */}
-      <div className="safe-b fixed inset-x-0 bottom-0 border-t border-line bg-bg/90 px-4 pt-3 backdrop-blur">
+      {/* Кнопка сохранения */}
+      <div className="safe-b fixed inset-x-0 bottom-0 border-t border-line bg-bg/90 px-4 pt-3 backdrop-blur z-40">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <p className="flex-1 truncate text-sm text-muted">
-            {error ? <span className="text-red-500">{error}</span> : (status ?? (dirty ? "Есть несохранённые изменения" : "Всё сохранено"))}
+            {error ? (
+              <span className="text-red-500">{error}</span>
+            ) : (
+              status ?? (dirty ? "Есть несохранённые изменения" : "Всё сохранено")
+            )}
           </p>
           <button
             onClick={save}
             disabled={!dirty}
-            className="min-h-12 rounded-control bg-accent px-6 font-medium text-accent-ink disabled:opacity-40"
+            className="min-h-12 rounded-control bg-accent px-6 font-medium text-accent-ink transition-opacity disabled:opacity-40"
           >
             Сохранить
           </button>
@@ -403,7 +429,7 @@ function MasterEditor({
         <button
           onClick={onRemove}
           aria-label="Удалить мастера"
-          className="min-h-11 shrink-0 rounded-control border border-line px-3 text-muted"
+          className="min-h-11 shrink-0 rounded-control border border-line px-3 text-muted hover:text-red-500 transition-colors"
         >
           ×
         </button>
@@ -432,8 +458,8 @@ function MasterEditor({
                 })
               }
               className={cn(
-                "min-h-10 rounded-pill border px-3 text-sm",
-                on ? "border-ink bg-accent text-accent-ink" : "border-line",
+                "min-h-10 rounded-pill border px-3 text-sm transition-colors",
+                on ? "border-ink bg-accent text-accent-ink" : "border-line bg-surface",
               )}
             >
               {s.title}
@@ -458,8 +484,8 @@ function MasterEditor({
                 })
               }
               className={cn(
-                "h-10 w-10 rounded-pill border text-sm",
-                off ? "border-ink bg-accent text-accent-ink" : "border-line",
+                "h-10 w-10 rounded-pill border text-sm transition-colors",
+                off ? "border-ink bg-accent text-accent-ink" : "border-line bg-surface",
               )}
             >
               {weekdayNames[wd].slice(0, 2)}
@@ -468,12 +494,12 @@ function MasterEditor({
         })}
       </div>
 
-      <label className="mt-4 flex items-center gap-2 text-sm">
+      <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer select-none">
         <input
           type="checkbox"
           checked={master.active}
           onChange={(e) => onChange({ ...master, active: e.target.checked })}
-          className="h-5 w-5"
+          className="h-5 w-5 rounded border-line text-accent focus:ring-0"
         />
         Принимает записи
       </label>
@@ -491,27 +517,28 @@ function BookingsTab() {
   const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(() => {
-    fetch("/api/admin/bookings")
-      .then((r) => r.json())
-      .then((j) => setItems(j.ok ? j.data : []));
+    fetch(`${API_BASE}/api/admin/bookings`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((j) => setItems(j.ok ? j.data : []))
+      .catch(() => setItems([]));
   }, []);
 
   useEffect(load, [load]);
 
   async function setStatus(id: string, status: BookingRecord["status"]) {
-    await fetch("/api/admin/bookings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
-    });
-    load();
+    try {
+      await fetch(`${API_BASE}/api/admin/bookings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id, status }),
+      });
+      load();
+    } catch {
+      alert("Не удалось обновить статус записи");
+    }
   }
 
-  /**
-   * Группировка по дате считается один раз на загрузку.
-   * Иначе при каждом переключении месяца пришлось бы фильтровать
-   * весь массив по 30 раз — по разу на ячейку сетки.
-   */
   const byDate = useMemo(() => {
     const map = new Map<string, BookingRecord[]>();
     for (const b of items ?? []) {
@@ -583,7 +610,6 @@ function BookingsTab() {
 
             const { iso, day } = cell;
             const all = byDate.get(iso) ?? [];
-            // Отменённые точку не рисуют: для управляющей это свободный день
             const active = all.filter((b) => b.status !== "cancelled");
             const isSelected = selected === iso && !showAll;
             const isToday = iso === todayIso();
@@ -631,7 +657,7 @@ function BookingsTab() {
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
-          className="shrink-0 text-sm text-muted underline underline-offset-4"
+          className="shrink-0 text-sm text-muted underline underline-offset-4 hover:text-ink transition-colors"
         >
           {showAll ? "По дням" : "Показать все"}
         </button>
@@ -671,17 +697,17 @@ function BookingCard({
   onPreview: (photoId: string) => void;
 }) {
   return (
-    <div className="rounded-control border border-line p-4">
+    <div className="rounded-control border border-line p-4 bg-elevated">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[15px]">
+        <p className="text-[15px] font-medium">
           {showDate ? `${formatDateLong(b.date)}, ${b.time}` : b.time}
         </p>
         <span
           className={cn(
-            "shrink-0 rounded-pill px-2 py-0.5 text-xs",
+            "shrink-0 rounded-pill px-2 py-0.5 text-xs font-medium",
             b.status === "confirmed" && "bg-accent text-accent-ink",
             b.status === "cancelled" && "bg-surface text-muted line-through",
-            b.status === "new" && "border border-line",
+            b.status === "new" && "border border-line bg-surface",
           )}
         >
           {b.status === "new" ? "новая" : b.status === "confirmed" ? "подтверждена" : "отменена"}
@@ -704,14 +730,12 @@ function BookingCard({
         ))}
       </ul>
 
-      <p className="mt-2 text-sm">
+      <p className="mt-2 text-sm font-medium">
         {formatDuration(b.totalDurationMin)} · {formatPrice(b.totalPrice, b.currency)}
       </p>
 
-      {b.comment && <p className="mt-2 text-sm text-muted">«{b.comment}»</p>}
+      {b.comment && <p className="mt-2 text-sm text-muted italic">«{b.comment}»</p>}
 
-      {/* Фото-референсы. Грузятся лениво: в списке из полусотни записей
-          иначе разом полетело бы полторы сотни запросов за картинками */}
       {b.photoIds && b.photoIds.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {b.photoIds.map((pid) => (
@@ -719,11 +743,11 @@ function BookingCard({
               key={pid}
               type="button"
               onClick={() => onPreview(pid)}
-              className="h-20 w-20 overflow-hidden rounded-control border border-line bg-surface"
+              className="h-20 w-20 overflow-hidden rounded-control border border-line bg-surface hover:opacity-80 transition-opacity"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`/api/admin/photos/${pid}`}
+                src={`${API_BASE}/api/admin/photos/${pid}`}
                 alt="Фото к записи"
                 loading="lazy"
                 className="h-full w-full object-cover"
@@ -738,14 +762,14 @@ function BookingCard({
           {b.status === "new" && (
             <button
               onClick={() => onStatus(b.id, "confirmed")}
-              className="min-h-11 flex-1 rounded-control bg-accent text-sm text-accent-ink"
+              className="min-h-11 flex-1 rounded-control bg-accent text-sm text-accent-ink font-medium"
             >
               Подтвердить
             </button>
           )}
           <button
             onClick={() => onStatus(b.id, "cancelled")}
-            className="min-h-11 flex-1 rounded-control border border-line text-sm"
+            className="min-h-11 flex-1 rounded-control border border-line text-sm hover:bg-surface transition-colors"
           >
             Отменить
           </button>
@@ -755,23 +779,23 @@ function BookingCard({
   );
 }
 
-/** Полноэкранный просмотр: миниатюры 80px мало, чтобы разглядеть оттенок */
 function PhotoViewer({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 cursor-pointer"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={`/api/admin/photos/${id}`}
+        src={`${API_BASE}/api/admin/photos/${id}`}
         alt="Фото к записи"
         className="max-h-full max-w-full rounded-card object-contain"
       />
       <button
         type="button"
+        onClick={onClose}
         aria-label="Закрыть"
-        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-pill bg-white/15 text-2xl text-white"
+        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-pill bg-white/15 text-2xl text-white hover:bg-white/25 transition-colors"
       >
         ×
       </button>
@@ -781,7 +805,6 @@ function PhotoViewer({ id, onClose }: { id: string; onClose: () => void }) {
 
 /* --------------------------- Календарь: helpers -------------------------- */
 
-/** Локальная дата, а не UTC: toISOString ночью отдаёт вчерашний день */
 function todayIso() {
   const d = new Date();
   const tz = d.getTimezoneOffset() * 60000;
@@ -799,10 +822,6 @@ function formatMonthLabel(ym: string) {
   return new Date(y, m - 1, 1).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
 }
 
-/**
- * Сетка месяца с понедельника. В отличие от клиентской формы,
- * прошлые дни здесь активны: управляющей нужна история визитов.
- */
 function monthCells(ym: string): Array<{ iso: string; day: number } | null> {
   const [year, month] = ym.split("-").map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -829,7 +848,7 @@ function Card({
 }) {
   return (
     <section className="rounded-card border border-line bg-elevated p-4">
-      <h2 className="text-[17px]">{title}</h2>
+      <h2 className="text-[17px] font-medium">{title}</h2>
       {hint && <p className="mb-4 mt-1 text-sm text-muted">{hint}</p>}
       {!hint && <div className="mb-4" />}
       {children}

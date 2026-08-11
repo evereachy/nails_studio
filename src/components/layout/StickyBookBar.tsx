@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { site } from "@/config/site";
-import { useBooking } from "@/features/booking/BookingProvider";
+import { useBookingStore } from "@/features/booking/store/useBookingStore";
 
 /**
- * Нижняя панель — главный мобильный элемент.
- * Появляется после первого экрана и прячется, когда открыта шторка записи,
- * чтобы не дублировать кнопку.
+ * Mobile sticky action bar. Appears after scrolling past the hero fold
+ * and hides automatically when the booking sheet is open.
  */
 export function StickyBookBar() {
-  const { open, isOpen } = useBooking();
+  const open = useBookingStore((s) => s.open);
+  const isOpen = useBookingStore((s) => s.isOpen);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {

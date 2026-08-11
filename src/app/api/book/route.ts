@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { buildSlots } from "@/lib/slots";
-import { MAX_ITEMS, exceedsWorkday, mastersForItems, summarize, toLines } from "@/lib/selection";
-import { getAvailability } from "@/services/availability";
-import { bookingRepository } from "@/services/booking-repository";
-import { notifyBooking } from "@/services/notifications";
-import { sendEmailConfirmation } from "@/services/notifications/email"; // 🟢 ADDED
+import { buildSlots } from "@/features/availability/slots";
+import { MAX_ITEMS, exceedsWorkday, mastersForItems, summarize, toLines } from "@/features/booking/selection";
+import { getAvailability } from "@/features/availability/availability-service";
+import { bookingRepository } from "@/features/booking/booking-repository";
+import { notifyBooking } from "@/features/notifications";
+import { sendEmailConfirmation } from "@/features/notifications/channels/email";
 import { uploads } from "@/config/uploads";
 import type { ApiResult, BookingItem, BookingPhoto, BookingRecord } from "@/types";
 
@@ -17,7 +17,7 @@ interface Body {
   time?: string;
   name?: string;
   phone?: string;
-  email?: string; // 🟢 ADDED
+  email?: string;
   telegram?: string;
   comment?: string;
   photos?: BookingPhoto[];
@@ -28,22 +28,22 @@ function validatePhotos(photos: BookingPhoto[] | undefined): {
   error?: string;
 } {
   if (!photos?.length) return { clean: [] };
-  if (!Array.isArray(photos)) return { clean: [], error: "Некорректный формат фото" };
+  if (!Array.isArray(photos)) return { clean: [], error: "Invalid photo format" };
   if (photos.length > uploads.maxFiles) {
-    return { clean: [], error: `Не больше ${uploads.maxFiles} фото` };
+    return { clean: [], error: `Maximum ${uploads.maxFiles} photos allowed` };
   }
 
   const clean: BookingPhoto[] = [];
   for (const p of photos) {
     const match = /^data:(image\/[a-z+.-]+);base64,/i.exec(p?.dataUrl ?? "");
-    if (!match) return { clean: [], error: "Файл не похож на изображение" };
+    if (!match) return { clean: [], error: "File does not appear to be an image" };
     if (!uploads.acceptMime.includes(match[1].toLowerCase() as never)) {
-      return { clean: [], error: "Такой формат изображения не поддерживается" };
+      return { clean: [], error: "Image format is not supported" };
     }
 
     const base64 = p.dataUrl.slice(p.dataUrl.indexOf(",") + 1);
     const bytes = Math.round(base64.length * 0.75);
-    if (bytes > uploads.maxBytes) return { clean: [], error: "Фото слишком тяжёлое" };
+    if (bytes > uploads.maxBytes) return { clean: [], error: "Photo file size is too large" };
 
     clean.push({
       id: String(p.id ?? "").slice(0, 40) || `p-${clean.length}`,
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json<ApiResult<never>>(
-      { ok: false, error: "Некорректный запрос" },
+      { ok: false, error: "Invalid JSON request body" },
       { status: 400 },
     );
   }
@@ -71,21 +71,21 @@ export async function POST(request: Request) {
   const rawItems = Array.isArray(body.items) ? body.items.slice(0, MAX_ITEMS) : [];
   const summary = summarize(rawItems);
 
-  if (summary.items.length === 0) fields.items = "Выберите хотя бы одну процедуру";
+  if (summary.items.length === 0) fields.items = "Select at least one procedure";
   else if (summary.items.length !== rawItems.length)
-    fields.items = "Одна из процедур больше не доступна";
+    fields.items = "One of the selected procedures is no longer available";
 
   const uniqueServices = new Set(rawItems.map((i) => i.serviceId));
-  if (uniqueServices.size !== rawItems.length) fields.items = "Процедура выбрана дважды";
+  if (uniqueServices.size !== rawItems.length) fields.items = "Duplicate procedure selected";
 
-  if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) fields.date = "Выберите дату";
-  if (!body.time || !/^\d{2}:\d{2}$/.test(body.time)) fields.time = "Выберите время";
-  if (!body.name || body.name.trim().length < 2) fields.name = "Введите имя";
-  if (!body.phone || body.phone.replace(/\D/g, "").length < 9) fields.phone = "Проверьте номер";
+  if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) fields.date = "Please select a date";
+  if (!body.time || !/^\d{2}:\d{2}$/.test(body.time)) fields.time = "Please select a time";
+  if (!body.name || body.name.trim().length < 2) fields.name = "Enter your full name";
+  if (!body.phone || body.phone.replace(/\D/g, "").length < 9) fields.phone = "Check your phone number";
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!body.email || !emailRegex.test(body.email.trim())) {
-    fields.email = "Введите корректный email адрес";
+    fields.email = "Enter a valid email address";
   }
 
   const photos = validatePhotos(body.photos);
@@ -95,13 +95,13 @@ export async function POST(request: Request) {
   const availability = await getAvailability(masterId);
 
   if (masterId && !availability.masters.some((m) => m.id === masterId)) {
-    fields.masterId = "Этот мастер больше не принимает";
+    fields.masterId = "This specialist is no longer accepting bookings";
   } else if (masterId && !mastersForItems(availability.masters, rawItems).some((m) => m.id === masterId)) {
-    fields.masterId = "Мастер не делает одну из выбранных процедур";
+    fields.masterId = "The chosen specialist does not perform one of these procedures";
   }
 
   if (exceedsWorkday(availability, summary.durationMin)) {
-    fields.items = "Столько процедур не помещается в один визит";
+    fields.items = "Selected procedures exceed total working hours for a single visit";
   }
 
   if (
@@ -116,13 +116,13 @@ export async function POST(request: Request) {
     const slot = buildSlots(availability, body.date, summary.durationMin).find(
       (s) => s.time === body.time,
     );
-    if (!slot) fields.time = "В этот день такого времени нет";
-    else if (!slot.available) fields.time = "Это время уже заняли — выберите другое";
+    if (!slot) fields.time = "No available time slots on this date";
+    else if (!slot.available) fields.time = "This slot was just taken — please choose another time";
   }
 
   if (Object.keys(fields).length > 0) {
     return NextResponse.json<ApiResult<never>>(
-      { ok: false, error: "Проверьте поля формы", fields },
+      { ok: false, error: "Please check form fields for errors", fields },
       { status: 422 },
     );
   }
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
   const record = await bookingRepository.create({
     lines: toLines(rawItems),
     masterId: master?.id ?? null,
-    masterName: master?.name ?? "любой свободный",
+    masterName: master?.name ?? "Any available",
     totalDurationMin: summary.durationMin,
     totalPrice: summary.price,
     currency: summary.currency,
@@ -149,7 +149,6 @@ export async function POST(request: Request) {
 
   const delivery = await notifyBooking(record);
 
-  // 🟢 Send Email Confirmation if customer email exists
   if (record.email) {
     await sendEmailConfirmation(record.email, record);
   }
@@ -176,7 +175,7 @@ export async function GET(request: Request) {
 
   if (!date || summary.items.length === 0) {
     return NextResponse.json<ApiResult<never>>(
-      { ok: false, error: "Нужны параметры date и items" },
+      { ok: false, error: "Parameters 'date' and 'items' are required" },
       { status: 400 },
     );
   }

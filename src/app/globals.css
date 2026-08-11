@@ -3,12 +3,12 @@
 @tailwind utilities;
 
 /* ============================================================
-   СЛОЙ 1 — ДИЗАЙН-ТОКЕНЫ
-   Единственное место, где живёт визуал.
-   Чтобы натянуть другой дизайн клиента — правим только этот блок.
+   LAYER 1 — DESIGN TOKENS
+   The single source of truth for visual styling.
+   To apply a different client design theme, modify only this block.
    ============================================================ */
 :root {
-  /* цвет */
+  /* Colors */
   --c-bg: #ffffff;
   --c-surface: #f7f6f3;
   --c-elevated: #ffffff;
@@ -18,39 +18,39 @@
   --c-accent: #1b1a18;
   --c-accent-ink: #ffffff;
 
-  /* форма */
+  /* Shapes & Radii */
   --r-card: 24px;
   --r-control: 14px;
   --r-pill: 999px;
 
-  /* тень */
+  /* Shadows */
   --sh-soft: 0 1px 2px rgba(20, 18, 15, 0.04), 0 10px 30px -18px rgba(20, 18, 15, 0.25);
   --sh-lift: 0 2px 4px rgba(20, 18, 15, 0.05), 0 18px 40px -20px rgba(20, 18, 15, 0.35);
 
-  /* типографика */
+  /* Typography */
   --f-display: var(--font-display), Georgia, serif;
   --f-body: var(--font-body), system-ui, -apple-system, sans-serif;
 
-  /* сетка */
+  /* Grid & Layout */
   --w-container: 1120px;
   --pad-x: 20px;
   --gap-section: 72px;
 
-  /* движение */
+  /* Motion & Animations */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --dur: 300ms;
   --dur-slow: 700ms;
   --hover-lift: -2px;
   --hover-scale: 1.02;
 
-  /* характер типографики — темы переопределяют */
+  /* Typography Character (Overridden by themes) */
   --f-display-weight: 400;
   --f-display-tracking: -0.02em;
   --f-display-case: none;
   --eyebrow-tracking: 0.18em;
   --eyebrow-case: uppercase;
 
-  /* декоративный слой: темы включают своё */
+  /* Decorative Layer (Themes specify their own) */
   --deco-opacity: 0;
   --deco-blur: 0px;
   --img-filter: none;
@@ -66,14 +66,14 @@
 }
 
 /* ============================================================
-   ТРИ СТИЛЯ. Переключаются одним словом: <html data-theme="...">
-   Каждый меняет не только цвет, но и форму, шрифт, тени,
-   фоновый слой и характер анимаций.
+   THEMES. Swapped dynamically via <html data-theme="...">
+   Each theme adjusts color, shape, font, shadows, background layers,
+   and motion characteristics.
    ============================================================ */
 
-/* --- COUTURE: светлый редакционный ---------------------------
-   Много воздуха, волосяные линии вместо теней, тонкие засечки.
-   Ощущение печатного каталога. */
+/* --- COUTURE: Light Editorial Style -------------------------
+   Spacious layout, hairline borders instead of soft shadows, light serif fonts.
+   Evokes the feel of a printed fashion catalog. */
 [data-theme="couture"] {
   --c-bg: #fdfcfa;
   --c-surface: #f4f1ec;
@@ -88,7 +88,7 @@
   --r-control: 2px;
   --border-width: 1px;
 
-  /* Тени почти нет: глубина строится линиями и пустотой */
+  /* Depth achieved via borders and whitespace rather than drop shadows */
   --sh-soft: 0 1px 1px rgba(23, 22, 20, 0.03);
   --sh-lift: 0 1px 2px rgba(23, 22, 20, 0.06), 0 12px 28px -22px rgba(23, 22, 20, 0.4);
 
@@ -117,8 +117,8 @@
   }
 }
 
-/* --- NOIR: тёмный глянец -------------------------------------
-   Крупный гротеск в верхнем регистре, свечение вместо теней. */
+/* --- NOIR: Dark Gloss ---------------------------------------
+   Large uppercase grotesk typography with subtle glows instead of drop shadows. */
 [data-theme="noir"] {
   --c-bg: #0b0b0c;
   --c-surface: #151517;
@@ -132,7 +132,7 @@
   --r-card: 18px;
   --r-control: 10px;
 
-  /* Свечение вместо падающей тени: на тёмном фоне тень не читается */
+  /* Ambient light glow instead of traditional drop shadow for dark backgrounds */
   --sh-soft: 0 0 0 1px rgba(232, 220, 200, 0.06), 0 20px 50px -30px rgba(0, 0, 0, 0.9);
   --sh-lift: 0 0 0 1px rgba(232, 220, 200, 0.14), 0 0 40px -12px rgba(232, 220, 200, 0.18),
     0 24px 60px -30px rgba(0, 0, 0, 1);
@@ -162,8 +162,8 @@
   }
 }
 
-/* --- BLOOM: мягкий розовый -----------------------------------
-   Округлые формы, живые тени, пружинистое движение. */
+/* --- BLOOM: Soft Warm Pink -----------------------------------
+   Rounded organic shapes, warm tinted shadows, and springy motion curves. */
 [data-theme="bloom"] {
   --c-bg: #fffafa;
   --c-surface: #fdeef0;
@@ -177,7 +177,7 @@
   --r-card: 32px;
   --r-control: 20px;
 
-  /* Тень цветная: серая на розовом выглядит грязной */
+  /* Tinted warm shadow preventing greyish muddy appearance */
   --sh-soft: 0 2px 6px rgba(194, 100, 111, 0.07), 0 14px 34px -18px rgba(194, 100, 111, 0.3);
   --sh-lift: 0 4px 10px rgba(194, 100, 111, 0.1), 0 26px 50px -20px rgba(194, 100, 111, 0.45);
 
@@ -191,7 +191,7 @@
 
   --dur: 340ms;
   --dur-slow: 700ms;
-  /* Лёгкий перелёт — отсюда «пружинистость» */
+  /* Elastic cubic-bezier transition for springy motion */
   --ease: cubic-bezier(0.34, 1.56, 0.64, 1);
   --hover-lift: -4px;
   --hover-scale: 1.03;
@@ -202,54 +202,15 @@
   --deco-blur: 90px;
 }
 
-/* --- CUPERTINO: правила характера ----------------------------
-   Ничего не переверстываем — только выравнивание, форма кнопок
-   и надзаголовки, которые в этой эстетике не капслочат. */
-
-/* Заголовки секций по центру, как на страницах продуктов Apple */
-[data-theme="cupertino"] main section > div > header {
-  text-align: center;
-  margin-inline: auto;
+@media (min-width: 768px) {
+  [data-theme="bloom"] {
+    --gap-section: 124px;
+  }
 }
 
-/* Надзаголовок здесь не разрядка мелким капсом, а синяя подпись */
-[data-theme="cupertino"] main .uppercase {
-  text-transform: none;
-  font-size: 0.95rem;
-  color: var(--c-accent);
-  font-weight: 500;
-}
-
-/* Крупный плотный заголовок — главный приём стиля */
-[data-theme="cupertino"] main h2 {
-  font-size: clamp(1.9rem, 6vw, 3.25rem);
-  line-height: 1.06;
-}
-
-[data-theme="cupertino"] h1 {
-  line-height: 1.05;
-}
-
-/* Кнопки-таблетки. Секцию записи исключаем: там поля и кнопки
-   должны оставаться одной формы, иначе форма выглядит разъехавшейся */
-[data-theme="cupertino"] main section:not(#booking) button,
-[data-theme="cupertino"] header button {
-  border-radius: 980px;
-}
-
-[data-theme="cupertino"] #booking button,
-[data-theme="cupertino"] [role="dialog"] button {
-  border-radius: var(--r-control);
-}
-
-/* Ссылки в навигации подчёркиванием не ездят — только цвет */
-[data-theme="cupertino"] nav a::after {
-  display: none;
-}
-/* --- CUPERTINO: минимализм в духе Apple ----------------------
-   Крупные мягкие скругления, почти белый фон, синий акцент,
-   тяжёлые плотные заголовки по центру. Дорого за счёт пустоты,
-   а не за счёт украшений. */
+/* --- CUPERTINO: Minimalist Apple Aesthetics ------------------
+   Generous rounded corners, crisp light backgrounds, royal blue accents,
+   and clean typography with centered section headers. */
 [data-theme="cupertino"] {
   --c-bg: #fbfbfd;
   --c-surface: #f5f5f7;
@@ -263,13 +224,10 @@
   --r-card: 28px;
   --r-control: 12px;
 
-  /* Тень мягкая и почти незаметная: глубину даёт белая карточка
-     на сером фоне, а не затемнение под ней */
+  /* Subtle soft shadow allowing white card contrast to create depth */
   --sh-soft: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -16px rgba(0, 0, 0, 0.18);
   --sh-lift: 0 2px 6px rgba(0, 0, 0, 0.05), 0 20px 44px -22px rgba(0, 0, 0, 0.3);
 
-  /* Своего шрифта нет: SF Pro закрыт лицензией, а Inter — его
-     ближайший бесплатный аналог, и он уже загружен как основной */
   --f-display: var(--font-body), -apple-system, BlinkMacSystemFont, sans-serif;
   --f-display-weight: 600;
   --f-display-tracking: -0.035em;
@@ -296,28 +254,59 @@
   }
 }
 
+/* Center section headers for Cupertino theme */
+[data-theme="cupertino"] main section > div > header {
+  text-align: center;
+  margin-inline: auto;
+}
+
+/* Eyebrows in Cupertino use normal case with blue accent colors */
+[data-theme="cupertino"] main .uppercase {
+  text-transform: none;
+  font-size: 0.95rem;
+  color: var(--c-accent);
+  font-weight: 500;
+}
+
+/* Large tight h2 typography characteristic of Cupertino design */
+[data-theme="cupertino"] main h2 {
+  font-size: clamp(1.9rem, 6vw, 3.25rem);
+  line-height: 1.06;
+}
+
+[data-theme="cupertino"] h1 {
+  line-height: 1.05;
+}
+
+/* Pill-shaped buttons for Cupertino except inside booking forms */
+[data-theme="cupertino"] main section:not(#booking) button,
+[data-theme="cupertino"] header button {
+  border-radius: 980px;
+}
+
+[data-theme="cupertino"] #booking button,
+[data-theme="cupertino"] [role="dialog"] button {
+  border-radius: var(--r-control);
+}
+
+/* Disable underline animation on Cupertino nav links */
+[data-theme="cupertino"] nav a::after {
+  display: none;
+}
+
 @media (hover: hover) {
   [data-theme="cupertino"] nav a:hover {
     color: var(--c-accent);
   }
-}
 
-/* Картинки чуть приближаются вместо смены фильтра */
-@media (hover: hover) {
   [data-theme="cupertino"] main a:hover img,
   [data-theme="cupertino"] main button:hover img {
     transform: scale(var(--hover-scale));
   }
 }
 
-@media (min-width: 768px) {
-  [data-theme="bloom"] {
-    --gap-section: 124px;
-  }
-}
-
 /* ============================================================
-   СЛОЙ 2 — БАЗА
+   LAYER 2 — BASE
    ============================================================ */
 @layer base {
   html {
@@ -335,7 +324,7 @@
     overscroll-behavior-y: none;
   }
 
-  /* 16px — иначе Safari на iOS зумит страницу при фокусе в поле */
+  /* 16px minimum font-size prevents iOS Safari auto-zooming on focus */
   input,
   textarea,
   select,
@@ -357,7 +346,7 @@
 }
 
 @layer utilities {
-  /* горизонтальные ленты карточек на мобиле */
+  /* Horizontal card rails for mobile screens */
   .rail {
     display: flex;
     gap: 12px;
@@ -376,7 +365,7 @@
     flex: 0 0 auto;
   }
 
-  /* безопасные зоны iPhone */
+  /* Safe Area Insets for iOS mobile devices */
   .safe-b {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
@@ -389,15 +378,13 @@
   }
 }
 
-
 /* ============================================================
-   СЛОЙ 3 — ХАРАКТЕР ТЕМЫ
-   Правила читают токены выше, поэтому один и тот же код
-   выглядит по-разному в каждой теме. Компоненты не меняются.
+   LAYER 3 — THEME CHARACTERISTICS
+   Reads design tokens defined above. Components remain uniform while
+   visually adapting across different theme contexts.
    ============================================================ */
 
-/* --- Фоновый декоративный слой ---
-   Фиксирован и не перехватывает клики. В каждой теме свой. */
+/* --- Fixed Decorative Background Overlay --- */
 body::before {
   content: "";
   position: fixed;
@@ -408,7 +395,7 @@ body::before {
   transition: opacity var(--dur-slow) var(--ease);
 }
 
-/* COUTURE: печатное зерно. Едва заметное, но убирает «цифровую» стерильность */
+/* COUTURE: Fine paper print grain effect */
 [data-theme="couture"] body::before,
 body[data-theme="couture"]::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.32'/%3E%3C/svg%3E");
@@ -416,7 +403,7 @@ body[data-theme="couture"]::before {
   animation: grain-shift 8s steps(6) infinite;
 }
 
-/* NOIR: два медленных световых пятна — экран «дышит» */
+/* NOIR: Ambient ambient light gradients */
 [data-theme="noir"] body::before {
   background:
     radial-gradient(38% 30% at 18% 12%, rgba(232, 220, 200, 0.1), transparent 70%),
@@ -424,7 +411,7 @@ body[data-theme="couture"]::before {
   animation: deco-drift 26s var(--ease) infinite alternate;
 }
 
-/* BLOOM: размытые цветные пятна */
+/* BLOOM: Soft blurred color blurs */
 [data-theme="bloom"] body::before {
   background:
     radial-gradient(30% 26% at 12% 8%, rgba(247, 195, 205, 0.55), transparent 70%),
@@ -452,13 +439,12 @@ body[data-theme="couture"]::before {
   100% { transform: translate(0, 0); }
 }
 
-/* Админка остаётся рабочим инструментом: декор там только мешает */
+/* Disable decorative background in admin panel view */
 body:has(.admin-root)::before {
   display: none;
 }
 
-/* --- Типографика ---
-   Заголовки и надзаголовки берут характер из токенов темы. */
+/* --- Typography Rules --- */
 h1,
 h2,
 h3 {
@@ -467,18 +453,17 @@ h3 {
   text-transform: var(--f-display-case);
 }
 
-/* Перебивает инлайновый tracking у надзаголовков в блоках */
 [data-theme] .uppercase {
   letter-spacing: var(--eyebrow-tracking);
 }
 
-/* NOIR: капслок только в заголовках секций, h1 остаётся крупным и обычным */
+/* NOIR: Capitalize section headers while keeping H1 normal case */
 [data-theme="noir"] main h2 {
   text-transform: uppercase;
   font-size: clamp(1.5rem, 5vw, 2.25rem);
 }
 
-/* COUTURE: тонкая линия под заголовком секции — приём печатной вёрстки */
+/* COUTURE: Fine accent line below section titles */
 [data-theme="couture"] main section > div > header::after {
   content: "";
   display: block;
@@ -489,8 +474,7 @@ h3 {
   opacity: 0.35;
 }
 
-/* --- Изображения ---
-   Обработка задаётся темой: одна и та же фотография читается по-разному. */
+/* --- Image Processing --- */
 main img,
 footer img {
   filter: var(--img-filter);
@@ -505,9 +489,7 @@ footer img {
   }
 }
 
-/* --- Карточки ---
-   Подъём и рамка — из токенов, поэтому в couture ничего не «взлетает»,
-   а в bloom карточка заметно приподнимается. */
+/* --- Cards --- */
 @media (hover: hover) {
   main .rounded-card {
     transition:
@@ -521,7 +503,7 @@ footer img {
   }
 }
 
-/* Ссылки в навигации: линия выезжает слева */
+/* Navigation Link Underline Effect */
 nav a {
   position: relative;
 }
@@ -545,7 +527,7 @@ nav a::after {
   }
 }
 
-/* --- Появление при скролле для блоков без Framer Motion --- */
+/* Entrance Animation Keyframe for Non-Framer Motion Elements */
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -557,13 +539,9 @@ nav a::after {
   }
 }
 
-
 /* ============================================================
-   ГЕОМЕТРИЯ ФОРМЫ ЗАПИСИ
-   У формы свои скругления — крупнее, чем у сайта.
-   Причина простая: на странице круглая карточка это украшение,
-   а в форме — подсказка, что элемент нажимается. Чем мельче
-   элемент, тем важнее, чтобы он читался как кнопка.
+   BOOKING FORM GEOMETRY OVERRIDES
+   Custom border-radius and control shapes tailored specifically for interactive booking dialogs.
    ============================================================ */
 #booking,
 [role="dialog"] {
@@ -571,26 +549,18 @@ nav a::after {
   --r-card: 30px;
 }
 
-/* COUTURE намеренно прямоугольный: круглая форма посреди
-   печатной вёрстки выглядела бы вставкой из другого макета.
-   Скругляем, но сдержанно. */
 [data-theme="couture"] #booking,
 [data-theme="couture"] [role="dialog"] {
   --r-control: 10px;
   --r-card: 16px;
 }
 
-/* Строгость: внутри формы никаких цветных ховеров и подъёмов —
-   только смена границы. Взгляд должен идти по содержанию,
-   а не по реагирующим на курсор блокам. */
 #booking .rounded-card,
 [role="dialog"] .rounded-card {
   box-shadow: none;
 }
 
-/* --- Форма записи остаётся нейтральной ---
-   Клиент заполняет её в спешке, и декоративные эффекты здесь
-   только отвлекают: ни фильтров на фото, ни подъёма карточек. */
+/* Keep form elements neutral without heavy hover effects */
 #booking img,
 [role="dialog"] img {
   filter: none !important;

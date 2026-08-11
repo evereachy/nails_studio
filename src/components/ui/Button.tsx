@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils/cn";
 
 type Variant = "primary" | "secondary" | "ghost";
 type Size = "md" | "lg";
@@ -19,7 +19,7 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  // min-h-12 = 48px — комфортная зона тапа на мобиле
+  // min-h-12 = 48px touch-target area for mobile accessibility
   md: "min-h-12 px-5 text-[15px]",
   lg: "min-h-14 px-7 text-base",
 };
