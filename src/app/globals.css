@@ -254,21 +254,21 @@
   }
 }
 
-/* Center section headers for Cupertino theme */
-[data-theme="cupertino"] main section > div > header {
+/* Center section headers for Cupertino theme (excluding Hero) */
+[data-theme="cupertino"] main section:not(#top) > div > header {
   text-align: center;
   margin-inline: auto;
 }
 
-/* Eyebrows in Cupertino use normal case with blue accent colors */
-[data-theme="cupertino"] main .uppercase {
+/* Eyebrows in Cupertino use normal case with blue accent colors (excluding Hero) */
+[data-theme="cupertino"] main section:not(#top) .uppercase {
   text-transform: none;
   font-size: 0.95rem;
   color: var(--c-accent);
   font-weight: 500;
 }
 
-/* Large tight h2 typography characteristic of Cupertino design */
+/* Disable aggressive global Cupertino layout overrides */
 [data-theme="cupertino"] main h2 {
   font-size: clamp(1.9rem, 6vw, 3.25rem);
   line-height: 1.06;
@@ -276,17 +276,6 @@
 
 [data-theme="cupertino"] h1 {
   line-height: 1.05;
-}
-
-/* Pill-shaped buttons for Cupertino except inside booking forms */
-[data-theme="cupertino"] main section:not(#booking) button,
-[data-theme="cupertino"] header button {
-  border-radius: 980px;
-}
-
-[data-theme="cupertino"] #booking button,
-[data-theme="cupertino"] [role="dialog"] button {
-  border-radius: var(--r-control);
 }
 
 /* Disable underline animation on Cupertino nav links */
@@ -304,6 +293,7 @@
     transform: scale(var(--hover-scale));
   }
 }
+
 
 /* ============================================================
    LAYER 2 — BASE
