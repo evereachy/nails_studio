@@ -38,7 +38,7 @@ export function Hero() {
       </div>
 
       <Container className="flex min-h-[100dvh] flex-col justify-end pb-4 pt-24 md:min-h-0 md:justify-center md:pb-0">
-        <div className="md:grid md:grid-cols-2 md:items-center md:gap-16 md:py-24">
+        <div className="relative z-10 md:grid md:grid-cols-2 md:items-center md:gap-16 md:py-24">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -71,6 +71,7 @@ export function Hero() {
                 {quick.map((s) => (
                   <button
                     key={s.id}
+                    type="button"
                     onClick={() => start(s.id)}
                     className="flex w-full items-center justify-between gap-3 rounded-control border border-line px-4 py-3.5 text-left transition-colors duration-200 ease-soft hover:border-ink/30 active:bg-surface"
                   >
@@ -100,7 +101,7 @@ export function Hero() {
       </Container>
 
       {/* Desktop side image */}
-      <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 hidden w-1/2 md:block">
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-1/2 md:block">
         <div className="absolute inset-6 overflow-hidden rounded-card">
           <Image
             src={site.hero.image}

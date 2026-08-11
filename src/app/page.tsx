@@ -2,31 +2,21 @@ import { Suspense } from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { StickyBookBar } from "@/components/layout/StickyBookBar";
-
-import { Hero } from "@/features/landing/Hero";
-import { About } from "@/features/landing/About";
-import { Services } from "@/features/landing/Services";
-import { Gallery } from "@/features/landing/Gallery";
-import { Reviews } from "@/features/landing/Reviews";
-import { Booking } from "@/features/landing/Booking";
-import { Faq } from "@/features/landing/Faq";
-
-import { BookingSheet } from "@/features/booking/components/BookingSheet";
+import { pageBlocks } from "@/config/blocks";
 import { AvailabilityInitializer } from "@/features/booking/components/AvailabilityInitializer";
+import { BookingSheet } from "@/features/booking/components/BookingSheet";
 
 export default function HomePage() {
   return (
     <>
       <AvailabilityInitializer />
       <Header />
-      <main>
-        <Hero />
-        <About />
-        <Services />
-        <Gallery />
-        <Reviews />
-        <Booking />
-        <Faq />
+      <main className="relative z-0">
+        {pageBlocks
+          .filter((b) => b.enabled)
+          .map(({ id, Component }) => (
+            <Component key={id} />
+          ))}
       </main>
       <Footer />
       <StickyBookBar />
