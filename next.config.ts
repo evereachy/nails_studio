@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   basePath: "/beauty",
+  env: {
+    NEXT_PUBLIC_BASE_PATH: "/beauty",
+  },
   images: {
     // Демо-картинки. Для продакшена заменить на свой CDN / /public.
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com" }],

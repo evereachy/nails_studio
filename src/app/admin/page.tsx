@@ -9,7 +9,7 @@ import { services } from "@/mock/catalog";
 
 type Tab = "schedule" | "masters" | "bookings";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/beauty";
 
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);

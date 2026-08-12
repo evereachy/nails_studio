@@ -24,7 +24,8 @@ export const useAvailabilityStore = create<AvailabilityState>((set, get) => ({
 
     try {
       const query = masterId ? `?masterId=${encodeURIComponent(masterId)}` : "";
-      const res = await fetch(`/api/availability${query}`, { cache: "no-store" });
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "/beauty";
+      const res = await fetch(`${basePath}/api/availability${query}`, { cache: "no-store" });
       const json = await res.json();
 
       // Prevent race conditions if master selection changed mid-fetch
