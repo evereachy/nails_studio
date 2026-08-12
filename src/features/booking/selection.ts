@@ -9,6 +9,8 @@ import type {
   Service,
 } from "@/types";
 
+import { services as defaultServices } from "@/mock/catalog";
+
 /** Maximum allowed service items per single visit */
 export const MAX_ITEMS = 4;
 
@@ -16,7 +18,7 @@ export const MAX_ITEMS = 4;
  * Resolves selected booking items to full service/variant records and computes totals.
  * Shared between client UI calculation and server payload validation.
  */
-export function summarize(items: BookingItem[], services: Service[] = []): SelectionSummary {
+export function summarize(items: BookingItem[], services: Service[] = defaultServices): SelectionSummary {
   const resolved: ResolvedItem[] = [];
 
   for (const item of items) {

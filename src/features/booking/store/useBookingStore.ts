@@ -1,9 +1,12 @@
 import { create } from "zustand";
 import type { BookingDraft, BookingItem, BookingRecord, ApiResult } from "@/types";
-import { toggleItem } from "@/features/booking/selection";
+import { toggleItem, toLines } from "@/features/booking/selection";
+import { services } from "@/mock/catalog";
 import { postBooking } from "../api";
 
 export type BookingStep = 1 | 2 | 3 | 4;
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/beauty";
 
 const emptyDraft: BookingDraft = {
   items: [],
@@ -87,7 +90,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   loadRescheduleBooking: async (id) => {
     set({ status: "sending", error: null });
     try {
-      const res = await fetch(`/api/book/${id}`);
+      const res = await fetch(`${BASE_PATH}/api/book/${id}`);
       const data = await res.json();
 
       if (data.ok && data.data) {
@@ -131,7 +134,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
     try {
       if (rescheduleId) {
-        const res = await fetch(`/api/book/${rescheduleId}/reschedule`, {
+        const res = await fetch(`${BASE_PATH}/api/book/${rescheduleId}/reschedule`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ date: draft.date, time: draft.time }),
@@ -139,7 +142,11 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         const resData: ApiResult<BookingRecord> = await res.json();
 
         if (resData.ok) {
-          set({ result: resData.data, status: "idle", step: 4 });
+          const resultRecord = {
+            ...resData.data,
+            lines: resData.data.lines?.length ? resData.data.lines : toLines(draft.items, services),
+          };
+          set({ result: resultRecord, status: "idle", step: 4 });
         } else {
           set({ status: "error", error: resData.error ?? "Failed to reschedule" });
         }
@@ -148,7 +155,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
       const res = await postBooking(draft);
       if (res.ok) {
-        set({ result: res.data, status: "idle", step: 4 });
+        // 🛠️ Ensure `lines` is always populated even if API returns raw booking data
+        const resultRecord = {
+          ...res.data,
+          lines: res.data.lines?.length ? res.data.lines : toLines(draft.items, services),
+        };
+        set({ result: resultRecord, status: "idle", step: 4 });
       } else {
         set({
           status: "error",
