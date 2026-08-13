@@ -3,6 +3,7 @@
 import { Sheet } from "@/components/ui/Sheet";
 import { BookingFlow } from "./BookingFlow";
 import { useBookingStore } from "../store/useBookingStore";
+import { RescheduleHandler } from "./RescheduleHandler"; // 1. Import handler
 
 /**
  * Mobile slide-over sheet for the booking flow.
@@ -14,8 +15,13 @@ export function BookingSheet() {
   const step = useBookingStore((s) => s.step);
 
   return (
-    <Sheet open={isOpen} onClose={close} title={step === 4 ? "Запись подтверждена" : "Запись"}>
-      <BookingFlow className="h-full pt-1" />
-    </Sheet>
+    <>
+      {/* 2. Listens for ?reschedule= in URL and calls loadRescheduleBooking() */}
+      <RescheduleHandler />
+
+      <Sheet open={isOpen} onClose={close} title={step === 4 ? "Запись подтверждена" : "Запись"}>
+        <BookingFlow className="h-full pt-1" />
+      </Sheet>
+    </>
   );
 }
