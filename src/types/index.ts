@@ -111,6 +111,7 @@ export interface BookingDraft {
   telegram?: string;
   comment?: string;
   photos: BookingPhoto[];
+  agreedToTerms?: boolean;
 }
 
 /** Item line formatted for API payload and notification channels */

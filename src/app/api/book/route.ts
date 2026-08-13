@@ -20,6 +20,7 @@ interface Body {
   telegram?: string;
   comment?: string;
   photos?: BookingPhoto[];
+  agreedToTerms?: boolean; // 👈 Privacy policy consent flag
 }
 
 function validatePhotos(photos: BookingPhoto[] | undefined): {
@@ -87,6 +88,11 @@ export async function POST(request: Request) {
     fields.email = "Enter a valid email address";
   }
 
+  // 🟢 Terms & privacy consent validation
+  if (!body.agreedToTerms) {
+    fields.agreedToTerms = "Необходимо согласие на обработку персональных данных";
+  }
+
   const photos = validatePhotos(body.photos);
   if (photos.error) fields.photos = photos.error;
 
@@ -146,7 +152,7 @@ export async function POST(request: Request) {
     source: "web",
   });
 
-  // ✅ ONLY call notifyBooking here. It sends both Telegram + single email confirmation.
+  // 🟢 Single entry point for dispatching notifications (Telegram + Email)
   const delivery = await notifyBooking(record);
 
   return NextResponse.json<ApiResult<BookingRecord & { delivery: typeof delivery }>>({
