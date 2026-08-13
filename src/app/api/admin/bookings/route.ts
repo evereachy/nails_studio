@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminCookieName, verifyToken } from "@/lib/auth/admin-auth";
 import { bookingRepository } from "@/features/booking/booking-repository";
+import { photoRepository } from "@/features/booking/photo-repository";
 import type { BookingRecord } from "@/types";
 
 export const runtime = "nodejs";
@@ -14,7 +15,22 @@ async function guard() {
 
 export async function GET() {
   if (!(await guard())) return NextResponse.json({ ok: false }, { status: 401 });
-  return NextResponse.json({ ok: true, data: await bookingRepository.listAll(200) });
+
+  const bookings = await bookingRepository.listAll(200);
+
+  // Attach actual photo IDs to each booking record
+  const enrichedBookings = await Promise.all(
+    bookings.map(async (booking) => {
+      const photoIds = await photoRepository.getIdsForBooking(booking.id);
+
+      return {
+        ...booking,
+        photoIds,
+      };
+    })
+  );
+
+  return NextResponse.json({ ok: true, data: enrichedBookings });
 }
 
 /** Confirm or cancel a booking */
