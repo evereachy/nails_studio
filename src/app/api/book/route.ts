@@ -4,7 +4,6 @@ import { MAX_ITEMS, exceedsWorkday, mastersForItems, summarize, toLines } from "
 import { getAvailability } from "@/features/availability/availability-service";
 import { bookingRepository } from "@/features/booking/booking-repository";
 import { notifyBooking } from "@/features/notifications";
-import { sendEmailConfirmation } from "@/features/notifications/channels/email";
 import { uploads } from "@/config/uploads";
 import type { ApiResult, BookingItem, BookingPhoto, BookingRecord } from "@/types";
 
@@ -147,11 +146,8 @@ export async function POST(request: Request) {
     source: "web",
   });
 
+  // ✅ ONLY call notifyBooking here. It sends both Telegram + single email confirmation.
   const delivery = await notifyBooking(record);
-
-  if (record.email) {
-    await sendEmailConfirmation(record.email, record);
-  }
 
   return NextResponse.json<ApiResult<BookingRecord & { delivery: typeof delivery }>>({
     ok: true,
