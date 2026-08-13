@@ -14,6 +14,7 @@ export interface StoredPhoto {
 export interface PhotoRepository {
   saveMany(bookingId: string, photos: BookingPhoto[]): Promise<string[]>;
   get(id: string): Promise<StoredPhoto | null>;
+  getIdsForBooking(bookingId: string): Promise<string[]>;
 }
 
 export function decodeDataUrl(dataUrl: string) {
@@ -70,6 +71,17 @@ const mongoRepository: PhotoRepository = {
       bytes: Buffer.from(doc.data.buffer),
     };
   },
+
+  async getIdsForBooking(bookingId) {
+    const db = await getDb();
+    const docs = await db
+      .collection(collections.photos)
+      .find({ bookingId })
+      .project({ _id: 1 })
+      .toArray();
+
+    return docs.map((d) => d._id as unknown as string);
+  },
 };
 
 /* -------------------------------- Memory -------------------------------- */
@@ -92,8 +104,18 @@ const inMemoryRepository: PhotoRepository = {
   async get(id) {
     return memory.get(id) ?? null;
   },
+
+  async getIdsForBooking(bookingId) {
+    const ids: string[] = [];
+    for (const photo of memory.values()) {
+      if (photo.bookingId === bookingId) {
+        ids.push(photo.id);
+      }
+    }
+    return ids;
+  },
 };
 
 export const photoRepository: PhotoRepository = isMongoEnabled
   ? mongoRepository
-  : inMemoryRepository;
+  : inMemoryRepository;;
