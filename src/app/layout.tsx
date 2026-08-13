@@ -3,6 +3,7 @@ import { Inter, Cormorant_Garamond, Manrope, Fraunces } from "next/font/google";
 import { site } from "@/config/site";
 import { ALLOW_THEME_QUERY, THEME, themeNames } from "@/config/theme";
 import "./globals.css";
+import { CookieBanner } from "@/components/ui/CookieBanner";
 
 const body = Inter({
   subsets: ["latin", "cyrillic"],
@@ -70,7 +71,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   // Цвет строки браузера под тему — иначе на noir сверху белая полоса
- themeColor:
+  themeColor:
     THEME === "noir"
       ? "#0b0b0c"
       : THEME === "bloom"
@@ -98,13 +99,17 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Весь внешний вид сайта — одно слово в src/config/theme.ts
     <html lang="ru" data-theme={THEME} className={fontVars}>
       <body>
         {ALLOW_THEME_QUERY && (
           <script dangerouslySetInnerHTML={{ __html: themeQueryScript }} />
         )}
+
         {children}
+
+        {/* 👈 2. Add CookieBanner here */}
+        <CookieBanner />
+
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

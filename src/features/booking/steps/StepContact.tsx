@@ -91,6 +91,34 @@ export function StepContact() {
         onChange={(e) => patch({ comment: e.target.value })}
       />
 
+      {/* 🟢 Privacy / Consent Checkbox */}
+      <div className="space-y-1">
+        <label className="flex items-start gap-3 cursor-pointer text-sm select-none">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-line text-ink focus:ring-ink shrink-0 cursor-pointer"
+            checked={Boolean(draft.agreedToTerms)}
+            onChange={(e) => patch({ agreedToTerms: e.target.checked })}
+          />
+          <span className="text-muted leading-tight">
+            Я соглашаюсь на{" "}
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-ink underline underline-offset-2 hover:opacity-80"
+              onClick={(e) => e.stopPropagation()}
+            >
+              обработку персональных данных
+            </a>{" "}
+            для записи на визит *
+          </span>
+        </label>
+        {fieldErrors.agreedToTerms && (
+          <p className="text-xs text-red-500 pl-7">{fieldErrors.agreedToTerms}</p>
+        )}
+      </div>
+
       <PhotoPicker
         label="Фото — по желанию"
         hint={`Референс или ваш нынешний цвет. До ${uploads.maxFiles} фото, мастер посмотрит заранее`}

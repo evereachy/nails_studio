@@ -18,10 +18,10 @@ const emptyDraft: BookingDraft = {
   email: "",
   comment: "",
   photos: [],
+  agreedToTerms: false, // 👈 Initial state
 };
 
 interface BookingState {
-  // State
   draft: BookingDraft;
   step: BookingStep;
   isOpen: boolean;
@@ -31,7 +31,6 @@ interface BookingState {
   result: BookingRecord | null;
   rescheduleId: string | null;
 
-  // Actions
   patch: (p: Partial<BookingDraft>) => void;
   toggle: (item: BookingItem) => void;
   goTo: (s: BookingStep) => void;
@@ -39,7 +38,6 @@ interface BookingState {
   close: () => void;
   reset: () => void;
 
-  // Async Actions
   loadRescheduleBooking: (id: string) => Promise<void>;
   submit: () => Promise<void>;
 }
@@ -112,6 +110,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
             email: b.email ?? "",
             comment: b.comment ?? "",
             photos: b.photos ?? [],
+            agreedToTerms: true,
           },
           isOpen: true,
           step: 2,
@@ -130,6 +129,18 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
   submit: async () => {
     const { draft, rescheduleId } = get();
+
+    // 🟢 Client-side check for privacy policy consent
+    if (!draft.agreedToTerms && !rescheduleId) {
+      set({
+        status: "error",
+        fieldErrors: {
+          agreedToTerms: "Необходимо согласие на обработку персональных данных",
+        },
+      });
+      return;
+    }
+
     set({ status: "sending", error: null, fieldErrors: {} });
 
     try {
@@ -155,7 +166,6 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
       const res = await postBooking(draft);
       if (res.ok) {
-        // 🛠️ Ensure `lines` is always populated even if API returns raw booking data
         const resultRecord = {
           ...res.data,
           lines: res.data.lines?.length ? res.data.lines : toLines(draft.items, services),
